@@ -17,10 +17,10 @@
 
 package com.kodebeagle.spark
 
-import com.kodebeagle.configuration.KodeBeagleConfig
-import com.kodebeagle.crawler.{Repository, ZipBasicParser}
+import com.kodebeagle.crawler.{ZipBasicParser, Repository}
 import com.kodebeagle.parser.RepoFileNameParser
 import com.kodebeagle.spark.CreateIndexJob.SourceFile
+import com.kodebeagle.configuration.KodeBeagleConfig
 import org.apache.commons.compress.archivers.zip.ZipFile
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
@@ -34,17 +34,12 @@ object SparkIndexJobHelper {
                        map: ArrayBuffer[(String, String)]): Set[SourceFile] = {
     val repo2 = repo.getOrElse(Repository.invalid)
     import com.kodebeagle.indexer.JavaFileIndexerHelper._
-
     map.map(x => SourceFile(repo2.id, fileNameToURL(repo2, x._1), x._2)).toSet
   }
 
-  def createSparkContext(conf: SparkConf): SparkContext = new SparkContext(conf)
-
   def makeZipFileExtractedRDD(sc: SparkContext):
   RDD[(ArrayBuffer[(String, String)], Option[Repository], List[String])] = {
-    val zipFileNameRDD = sc.binaryFiles(KodeBeagleConfig.githubDir).map { case (zipFile, _) =>
-      zipFile.stripPrefix("file:")
-    }
+    val zipFileNameRDD: RDD[String] = createZipFileNameRDD(sc)
     val zipFileExtractedRDD = zipFileNameRDD.flatMap { zipFileName =>
       // Ignoring exclude packages.
       val zipFileOpt = Try(new ZipFile(zipFileName)).toOption
@@ -55,6 +50,32 @@ object SparkIndexJobHelper {
     }
     zipFileExtractedRDD
   }
+
+  def makeZipFileRDD(sc: SparkContext): RDD[(ZipFile, Option[Repository])] = {
+    val zipFileNameRDD: RDD[String] = createZipFileNameRDD(sc)
+    zipFileNameRDD.flatMap { zipFileName =>
+      // Ignoring exclude packages.
+      val zipFileOpt = Try(new ZipFile(zipFileName)).toOption
+      zipFileOpt.map { zipFile =>
+        (zipFile, RepoFileNameParser(zipFileName))
+      }
+    }
+  }
+
+  def makeZipFileNameRDDFromHDFS(sc: SparkContext): RDD[(String, Option[Repository])] = {
+    val zipFileNameRDD: RDD[String] = createZipFileNameRDD(sc)
+    zipFileNameRDD.map { zipFileName =>
+      // Ignoring exclude packages.
+      (zipFileName, RepoFileNameParser(zipFileName))
+    }
+  }
+
+  def createZipFileNameRDD(sc: SparkContext): RDD[String] = {
+   sc.binaryFiles(KodeBeagleConfig.githubDir).map { case (zipFile, _) =>
+     zipFile.stripPrefix("file:")}.filter(_.endsWith(".zip"))
+  }
+
+  def createSparkContext(conf: SparkConf): SparkContext = new SparkContext(conf)
 
   /**
    * This currently uses star counts for a repo as a score.

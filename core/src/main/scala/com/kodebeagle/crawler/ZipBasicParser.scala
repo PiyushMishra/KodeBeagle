@@ -17,13 +17,14 @@
 
 package com.kodebeagle.crawler
 
-import java.io.{ BufferedInputStream, File }
+import java.io.File
 import org.apache.commons.compress.archivers.zip.ZipFile
 import org.apache.commons.io.IOUtils
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Try
+import com.kodebeagle.crawler.ZipHelper._
 
 /**
  * Extracts java files and packages from the given zip file.
@@ -32,18 +33,9 @@ object ZipBasicParser {
 
   private val bufferSize = 1024000 // about 1 mb
 
-  private def fileNameToPackageName(s: String) = {
-    val (_, packageN) = s.splitAt(s.indexOf("/src/"))
-    packageN.stripPrefix("/").stripSuffix("/").replace('/', '.').stripPrefix("src.main.java.")
-  }
-
   def readFilesAndPackages(zip: ZipFile): (ArrayBuffer[(String, String)], List[String]) = {
     val list = mutable.ArrayBuffer[(String, String)]()
-    val zipArchiveEntries = zip.getEntries.toList
-    val allJavaFiles = zipArchiveEntries.filter(x => x.getName.endsWith("java") && !x.isDirectory)
-    val allPackages = zipArchiveEntries
-      .filter(x => x.isDirectory && x.getName.toLowerCase.matches(".*src/main/java.*"))
-      .map(f => fileNameToPackageName(f.getName))
+    val (allJavaFiles, allPackages) = extractZipEntriesAndPackages(zip.getEntries.toList)
     val files = allJavaFiles.map(x => x.getName -> zip.getInputStream(x))
     for ((name, f) <- files) {
       val b = new Array[Byte](bufferSize)
@@ -53,5 +45,28 @@ object ZipBasicParser {
   }
 
   def listAllFiles(dir: String): Array[File] = new File(dir).listFiles
+
 }
+
+object ZipHelper {
+
+  private def fileNameToPackageName(s: String) = {
+    val (_, packageN) = s.splitAt(s.indexOf("/src/"))
+    packageN.stripPrefix("/").stripSuffix("/").replace('/', '.').stripPrefix("src.main.java.")
+  }
+
+  def mapToPackageName[T <: java.util.zip.ZipEntry]: (List[T] => List[String]) = (list: List[T]) =>
+    list.filter(x => x.isDirectory && x.getName.toLowerCase.matches(".*src/main/java.*"))
+      .map (f => fileNameToPackageName(f.getName))
+
+  def extractZipEntriesAndPackages[T <: java.util.zip.ZipEntry]
+  : (List[T] => (List[T], List[String])) = (zipArchiveEntries: List[T]) => {
+    val allJavaFiles = zipArchiveEntries.filter(x => x.getName.endsWith("java") && !x.isDirectory)
+    val allPackages = mapToPackageName(zipArchiveEntries)
+    (allJavaFiles, allPackages)
+  }
+
+}
+
+
 
