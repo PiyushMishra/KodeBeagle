@@ -71,6 +71,7 @@ class JavaASTBasedIndexer extends BasicIndexer with Logger {
   }
 
   def generateTokens(zipFile: ZipFile, repo: Option[Repository]): Unit = {
+    createFolderIfNotExists(KodeBeagleConfig.sparkIndexOutput)
     import scala.collection.JavaConversions._
     import com.kodebeagle.crawler.ZipHelper._
     import scala.util.Try
@@ -101,6 +102,7 @@ class JavaASTBasedIndexer extends BasicIndexer with Logger {
   }
 
   def generateTokens(hdfsFilePath: String, repo: Option[Repository]): Unit = {
+    createFolderIfNotExists(KodeBeagleConfig.sparkIndexOutput)
     try {
       val (_, excludePackages) = zipExtracter.readFileNameAndPackages(hdfsFilePath)
       var indexEntries = immutable.HashSet[IndexEntry]()
@@ -131,7 +133,7 @@ class JavaASTBasedIndexer extends BasicIndexer with Logger {
       while (ze != None)
       stream.close
       appendToFile(KodeBeagleConfig.sparkIndexOutput + r.id, toJson(r, isToken = false) + "\n" +
-        toJson(indexEntries, isToken = true))
+        toJson(indexEntries, isToken = true) + "\n")
     } catch {
       case ex: Exception => log.error(s"Failed for $repo",  ex)
     }
@@ -145,5 +147,10 @@ class JavaASTBasedIndexer extends BasicIndexer with Logger {
     tokens.map { y =>
       IndexEntry(r.id, fullGithubURL, y, score)
     }
+  }
+
+  def createFolderIfNotExists(folderName:String) = {
+    val folder = new java.io.File(folderName)
+    if(!folder.exists()) folder.mkdirs()
   }
 }
