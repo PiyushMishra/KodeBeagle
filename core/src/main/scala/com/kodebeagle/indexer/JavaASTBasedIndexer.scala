@@ -57,6 +57,8 @@ class JavaASTBasedIndexer extends BasicIndexer with Logger {
       val fullGithubURL = fileNameToURL(r, fileName)
       try {
         val (imports, tokens) = extractTokensASTParser(excludePackages.toSet, fileContent, fileName)
+        log.debug("repo is [" + repo  + "] files [" + files.size + "] " +
+          "excludedPackages [" + excludePackages + "] " + "] tokens [" + tokens.size + "]")
         val score =
           if (isTestFile(imports)) r.stargazersCount / penalizeTestFiles else r.stargazersCount
         tokens.foreach { y =>

@@ -20,7 +20,7 @@ package com.kodebeagle.crawler
 import java.io.{ByteArrayOutputStream, File}
 import java.util.zip.{ZipEntry, ZipInputStream}
 
-import org.apache.commons.io.IOUtils
+import com.kodebeagle.logging.Logger
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -29,7 +29,7 @@ import scala.util.Try
 /**
  * Extracts java files and packages from the given zip file.
  */
-object ZipBasicParser {
+object ZipBasicParser extends Logger {
 
   private val bufferSize = 1024000 // about 1 mb
 
@@ -43,15 +43,18 @@ object ZipBasicParser {
     val allPackages =  mutable.ArrayBuffer[String]()
     var ze: Option[ZipEntry] = None
     do {
-      ze = Option(zipStream.getNextEntry)
-      ze.foreach {
-        ze => if (ze.getName.endsWith("java") && !ze.isDirectory) {
+      try {
+        ze = Option(zipStream.getNextEntry)
+        ze.foreach { ze => if (ze.getName.endsWith("java") && !ze.isDirectory) {
           val fileName = ze.getName
           val fileContent = readContent(zipStream)
           list += (fileName -> fileContent)
-        } else if (ze.isDirectory && ze.getName.toLowerCase.matches(".*src/main/java.*")){
+        } else if (ze.isDirectory && ze.getName.toLowerCase.matches(".*src/main/java.*")) {
           allPackages += fileNameToPackageName(ze.getName)
         }
+        }
+      } catch {
+        case ex: Exception => log.error("Exception reading next entry {}", ex)
       }
     } while (ze.isDefined)
     (list.toList, allPackages.toList)
