@@ -154,3 +154,16 @@ class MethodVisitorSuite extends FunSuite with BeforeAndAfterAll {
   }
 }
 
+class ZipParserTest extends FunSuite {
+
+  import com.kodebeagle.crawler.ZipBasicParser._
+  import java.util.zip.ZipInputStream
+  import com.kodebeagle.indexer.Statistics
+
+  test("read zip file correctly") {
+    val stream: InputStream = Thread.currentThread.getContextClassLoader.getResourceAsStream(
+        "repo~Cascading~cascading-dbmigrate~576623~false~Java~master~65.zip")
+    val (files, packages, statistics) = readFilesAndPackages(576623, new ZipInputStream(stream))
+    assert(statistics === Statistics(576623, 529, 4, 19))
+  }
+}
