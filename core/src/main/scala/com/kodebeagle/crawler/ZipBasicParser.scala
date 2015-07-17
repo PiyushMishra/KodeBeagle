@@ -62,9 +62,12 @@ object ZipBasicParser extends Logger {
           allPackages += fileNameToPackageName(ze.getName)
         }
         }
+        zipStream.closeEntry()
       } while (ze.isDefined)
     } catch {
       case ex: Exception => log.error("Exception reading next entry {}", ex)
+    } finally {
+      zipStream.close()
     }
     (list.toList, allPackages.toList, Statistics(repoId, sloc, fileCount, size / 1024))
   }
@@ -78,7 +81,7 @@ object ZipBasicParser extends Logger {
     } while (data != -1)
     val kmlBytes = output.toByteArray
     output.close()
-    new String(kmlBytes, "utf-8").trim
+    new String(kmlBytes, "utf-8").trim.replaceAll("\t", "  ")
   }
 
   def listAllFiles(dir: String): Array[File] = new File(dir).listFiles

@@ -26,6 +26,7 @@ import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.CatchClause;
 import com.github.javaparser.ast.stmt.ExpressionStmt;
+import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import scala.Tuple3;
@@ -268,10 +269,6 @@ public class MethodVisitor extends VoidVisitorAdapter {
                     }
                 }
 
-                updateLineNumbersMap(fullTypeName, n.getBeginLine());
-                updateLineAndColumnsNumbersMap(fullTypeName, n.getBeginLine(),
-                        n.getBeginColumn(), n.getEndColumn());
-
                 // Process anonymous class body.
                 if (n.getAnonymousClassBody() != null) {
                     for (BodyDeclaration bdecl : n.getAnonymousClassBody()) {
@@ -279,6 +276,12 @@ public class MethodVisitor extends VoidVisitorAdapter {
 
                     }
                 }
+
+                ClassOrInterfaceType type = n.getType();
+                updateLineNumbersMap(fullTypeName, n.getBeginLine());
+                updateLineAndColumnsNumbersMap(fullTypeName, n.getBeginLine(),
+                        type.getBeginColumn(), type.getEndColumn());
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -396,7 +399,7 @@ public class MethodVisitor extends VoidVisitorAdapter {
             nameVsTypeMap.put(id, fullType(type));
             updateLineNumbersMap(fullType(type), n.getBeginLine());
             updateLineAndColumnsNumbersMap(fullType(type), n.getBeginLine(),
-                    n.getBeginColumn(), n.getEndColumn());
+                    n.getType().getBeginColumn(), n.getType().getEndColumn());
         }
 
     }

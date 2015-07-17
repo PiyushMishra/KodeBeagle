@@ -165,7 +165,7 @@ class JavaASTBasedIndexerForMethodsSuite extends FunSuite with BeforeAndAfterAll
       .toString), List(), Some(Repository.invalid))
 
     assert(methodTokens.size === 7)
-
+  
     val importChannel: String = "io.netty.channel.Channel"
     val importObjects: String = "com.google.common.base.Objects"
     val importLogger: String = "org.slf4j.Logger"
@@ -197,7 +197,7 @@ class JavaASTBasedIndexerForMethodsSuite extends FunSuite with BeforeAndAfterAll
         MethodToken(importThrowables.toLowerCase,importThrowables,List(HighLighter(189,13,22),
           HighLighter(191,13,22)),Set(MethodAndLines("propagate",List(HighLighter(189,13,46),
           HighLighter(191,13,35))))), MethodToken(importSFuture.toLowerCase,
-          importSFuture,List(HighLighter(172,5,65), HighLighter(182,9,14), HighLighter(187,14,19),
+          importSFuture,List(HighLighter(182,9,14), HighLighter(187,14,19), HighLighter(172,11,32),
             HighLighter(172,43,56), HighLighter(177,9,14)),Set(MethodAndLines("set",
             List(HighLighter(177,9,28))), MethodAndLines("get",List(HighLighter(187,14,57))),
             MethodAndLines("create",List(HighLighter(172,43,65))),
@@ -223,27 +223,26 @@ class JavaASTBasedIndexerForMethodsSuite extends FunSuite with BeforeAndAfterAll
 
       ImportsMethods(-1,sampleFile,
         Set(MethodToken(importCFReq.toLowerCase(),
-          importCFReq,List(HighLighter(108,27,62)),Set()),
+          importCFReq,List(HighLighter(108,31,47)),Set()),
           MethodToken(importChannel.toLowerCase,importChannel,List(HighLighter(101,59,65),
             HighLighter(121,13,19), HighLighter(108,5,11)),
             Set(MethodAndLines("close",List(HighLighter(121,13,27))),
               MethodAndLines("writeAndFlush",List(HighLighter(108,5,63))))),
           MethodToken(importLogger.toLowerCase,importLogger,List(HighLighter(103,5,10),
-            HighLighter(114,13,18), HighLighter(119,13,18),
-            HighLighter(125,15,20)),
+            HighLighter(114,13,18), HighLighter(119,13,18), HighLighter(125,15,20)),
             Set(MethodAndLines("trace",List(HighLighter(114,13,24))),
               MethodAndLines("debug",List(HighLighter(103,5,80))),
               MethodAndLines("error",List(HighLighter(119,13,50), HighLighter(125,15,85))))),
           MethodToken(importSCId.toLowerCase,
-            importSCId,List(HighLighter(120,40,52),
-              HighLighter(117,84,96), HighLighter(105,41,79), HighLighter(106,29,41),
-              HighLighter(108,49,61), HighLighter(114,65,77), HighLighter(105,5,79)),Set()),
+            importSCId,List(HighLighter(120,40,52), HighLighter(117,84,96), HighLighter(106,29,41),
+              HighLighter(105,11,23), HighLighter(108,49,61), HighLighter(114,65,77),
+              HighLighter(105,45,57)),Set()),
           MethodToken(importChannel.toLowerCase + "futurelistener",
-            importChannel + "FutureListener", List(HighLighter(109,7,7)),Set()),
+            importChannel + "FutureListener", List(HighLighter(109,11,31)),Set()),
           MethodToken(importNettyUtils.toLowerCase, importNettyUtils,
             List(HighLighter(101,31,40)),Set(MethodAndLines("getRemoteAddress",
               List(HighLighter(101,31,66))))),
-          MethodToken(importIOE.toLowerCase,importIOE,List(HighLighter(123,46,86)),Set()),
+          MethodToken(importIOE.toLowerCase,importIOE,List(HighLighter(123,50,60)),Set()),
           MethodToken(importChannel.toLowerCase + "future",importChannel + "Future",
             List(HighLighter(112,15,20), HighLighter(118,27,32), HighLighter(119,36,41),
               HighLighter(123,72,77)), Set(MethodAndLines("cause",List(HighLighter(118,27,40),
@@ -253,7 +252,7 @@ class JavaASTBasedIndexerForMethodsSuite extends FunSuite with BeforeAndAfterAll
       ImportsMethods(-1,sampleFile,
         Set(MethodToken(importUUID.toLowerCase,importUUID,List(HighLighter(141,37,40)),
           Set(MethodAndLines("randomUUID",List(HighLighter(141,37,53))))),
-          MethodToken(importIOE.toLowerCase, importIOE,List(HighLighter(158,34,74)),Set()),
+          MethodToken(importIOE.toLowerCase, importIOE,List(HighLighter(158,38,48)),Set()),
           MethodToken(importChannel.toLowerCase,importChannel,List(HighLighter(137,59,65),
             HighLighter(156,13,19), HighLighter(144,5,11)),Set(MethodAndLines("close",
             List(HighLighter(156,13,27))), MethodAndLines("writeAndFlush",
@@ -264,14 +263,14 @@ class JavaASTBasedIndexerForMethodsSuite extends FunSuite with BeforeAndAfterAll
             HighLighter(150,13,18), HighLighter(154,13,18), HighLighter(160,15,20)),
             Set(MethodAndLines("trace",List(HighLighter(139,5,49), HighLighter(150,13,97))),
               MethodAndLines("error",List(HighLighter(154,13,50), HighLighter(160,15,85))))),
-          MethodToken(importRpcReq.toLowerCase,importRpcReq,List(HighLighter(144,27,60)),Set()),
+          MethodToken(importRpcReq.toLowerCase,importRpcReq,List(HighLighter(144,31,40)),Set()),
           MethodToken(importChannel.toLowerCase + "future",importChannel + "Future",
             List(HighLighter(148,15,20), HighLighter(153,27,32), HighLighter(154,36,41),
               HighLighter(158,60,65)),Set(MethodAndLines("cause",List(HighLighter(153,27,40),
               HighLighter(154,36,49), HighLighter(158,60,73))), MethodAndLines("isSuccess",
               List(HighLighter(148,15,32))))),
           MethodToken(importChannel.toLowerCase + "futurelistener",
-            importChannel + "FutureListener",List(HighLighter(145,7,7)),Set())),0)
+            importChannel + "FutureListener",List(HighLighter(145,11,31)),Set())),0)
     )
 
     assert(methodTokens ===  testMethodTokens)
