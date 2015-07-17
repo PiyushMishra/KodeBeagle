@@ -30,7 +30,7 @@ case class ImportsMethods(repoId: Int, file: String,
                           tokens: Set[MethodToken], score: Int)
 
 /* Since our tokens are fully qualified import names. */
-case class Token(importName: String, importExactName: String, lineNumbers: immutable.Set[Int])
+case class Token(importName: String, lineNumbers: immutable.Set[Int])
 
 case class Token2(importName: String, importExactName: String,
     lineNumbers: immutable.Set[HighLighter])

@@ -43,8 +43,8 @@ class JavaASTBasedIndexer extends BasicIndexer with Logger {
     val importsSet = imports.map(tuple2ToImportString)
     (imports,
       parser.getListOflineNumbersMap.map { x =>
-        x.map(y => Token(y._1.toLowerCase, y._1, y._2.map(_.toInt).toSet))
-          .filter(x => importsSet.contains(x.importExactName)).toSet
+        x.map(y => Token(y._1, y._2.map(_.toInt).toSet))
+          .filter(x => importsSet.contains(x.importName)).toSet
       }.toSet)
   }
 

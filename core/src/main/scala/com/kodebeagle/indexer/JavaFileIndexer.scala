@@ -36,7 +36,7 @@ trait BasicIndexer extends Serializable {
       repo: Option[Repository]): Set[IndexEntry]
 
   protected def mapToTokens(map: mutable.Map[String, immutable.SortedSet[Int]]): Set[Token] = {
-    map.map{ case (key, value) => Token(key.toLowerCase, key, value) }.toSet
+    map.map{ case (key, value) => Token(key, value) }.toSet
   }
 }
 object JavaFileIndexerHelper {
