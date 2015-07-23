@@ -34,15 +34,16 @@ class GitHubRepoDownloader extends Actor with Logger {
 
     case DownloadOrganisationRepos(organisation) => downloadFromOrganization(organisation)
 
-    case DownloadPublicRepos(since) =>
+    case DownloadPublicRepos(since, zipOrClone) =>
       try {
-        val nextSince = downloadFromRepoIdRange(since)
-        self ! DownloadPublicRepos(nextSince)
+        val nextSince = downloadFromRepoIdRange(since, zipOrClone)
+        self ! DownloadPublicRepos(nextSince,zipOrClone)
       } catch {
         case ex: Exception =>
-          log.error("Exception occured" + ex.getMessage +
-            "Trying to download, waiting for other tokens")
-          self ! DownloadPublicRepos(since)
+          ex.printStackTrace()
+          log.error("Got Exception [" + ex.getMessage + "] Trying to download, " +
+            "waiting for other tokens")
+          self ! DownloadPublicRepos(since, zipOrClone)
       }
 
     case RateLimit(rateLimit) =>
@@ -59,11 +60,23 @@ object GitHubRepoDownloader {
 
   case class DownloadOrganisationRepos(organisation: String)
 
-  case class DownloadPublicRepos(since: Int)
+  case class DownloadPublicRepos(since: Int, zipOrClone: String)
 
   case class RateLimit(limit: String)
 
   val system = ActorSystem("RepoDownloder")
 
   val repoDownloader = system.actorOf(Props[GitHubRepoDownloader])
+
+  val zipActor = system.actorOf(Props[ZipActor])
+
 }
+
+class ZipActor extends Actor {
+  def receive: PartialFunction[Any, Unit] = {
+    case filePath: String => ZipUtil.createZip(filePath, filePath + ".zip")
+      import sys.process._
+      Process("rm -fr " + filePath).!!
+  }
+}
+

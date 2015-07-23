@@ -17,15 +17,14 @@
 
 package com.kodebeagle.crawler
 
-import java.io.{ByteArrayOutputStream, File}
-import java.util.zip.{ZipEntry, ZipInputStream}
+import java.io._
+import java.util.zip.{ZipEntry, ZipInputStream, ZipOutputStream}
 
 import com.kodebeagle.indexer.Statistics
 import com.kodebeagle.logging.Logger
-import org.apache.commons.io.IOUtils
+import org.apache.commons.compress.archivers.zip.{ZipArchiveEntry, ZipArchiveOutputStream}
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.util.Try
 
 /**
@@ -87,3 +86,46 @@ object ZipBasicParser extends Logger {
   def listAllFiles(dir: String): Array[File] = new File(dir).listFiles
 }
 
+object ZipUtil extends Logger {
+
+  def createZip(directoryPath: String, zipPath: String) {
+    try {
+      val fOut = new FileOutputStream(new File(zipPath))
+      val bOut = new BufferedOutputStream(fOut)
+      val tOut = new ZipArchiveOutputStream(bOut)
+      addFileToZip(tOut, directoryPath, "")
+      tOut.finish(); tOut.close(); bOut.close(); fOut.close();
+    } catch {
+      case ex: Exception => log.error(s"exception while zipping directory ${directoryPath}", ex)
+    }
+  }
+
+  def addFileToZip(zOut: ZipArchiveOutputStream, path: String, base: String) {
+    val f = new File(path);
+    val entryName = base + f.getName();
+    val zipEntry = new ZipArchiveEntry(f, entryName);
+    import org.apache.commons.io.IOUtils
+    zOut.putArchiveEntry(zipEntry);
+    if (f.isFile()) {
+      try {
+        for {
+          fInputStream <- Option(new FileInputStream(f))
+        } yield {
+          IOUtils.copy(fInputStream, zOut);
+          zOut.closeArchiveEntry();
+          IOUtils.closeQuietly(fInputStream);
+        }
+      } catch {
+        case ex: Exception => log.error(s"exception while zipping file ${f.getAbsolutePath}", ex)
+      }
+    } else {
+      zOut.closeArchiveEntry();
+      val children = f.listFiles();
+      if (Option(children) != None) {
+        for (child <- children) {
+          addFileToZip(zOut, child.getAbsolutePath(), entryName + "/");
+        }
+      }
+    }
+  }
+}

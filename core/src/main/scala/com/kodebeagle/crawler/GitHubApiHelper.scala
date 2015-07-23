@@ -1,24 +1,25 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+* Licensed to the Apache Software Foundation (ASF) under one or more
+* contributor license agreements.  See the NOTICE file distributed with
+* this work for additional information regarding copyright ownership.
+* The ASF licenses this file to You under the Apache License, Version 2.0
+* (the "License"); you may not use this file except in compliance with
+* the License.  You may obtain a copy of the License at
+*
+*    http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
 
 package com.kodebeagle.crawler
 
 import java.io.File
 import java.net.URL
+import java.util.Calendar
 
 import com.kodebeagle.configuration.KodeBeagleConfig
 import com.kodebeagle.crawler.GitHubRepoDownloader._
@@ -101,7 +102,7 @@ object GitHubApiHelper extends Logger {
     getElements.toList(1).getValue.substring(0, 2).replaceAll("\\W+", "").toInt
 
   /*
-     * Helper for accessing Java - Apache Http client. 
+     * Helper for accessing Java - Apache Http client.
      * (It it important to stick with the current version and all.)
      */
   def httpGetJson(method: GetMethod): Option[JValue] = {
@@ -129,10 +130,20 @@ object GitHubApiHelper extends Logger {
     method
   }
 
+  def createDirectoryWithDate(targetDir: String): String = {
+    val cal = Calendar.getInstance();
+    val (day, month, year) = (cal.get(Calendar.DAY_OF_MONTH), cal.get(Calendar.MONTH),
+      cal.get(Calendar.YEAR))
+    val githubdir = targetDir + "/" + day + "_" + month + "_" + year
+    if (!new File(githubdir).exists) { new File(githubdir).mkdirs }
+    githubdir
+  }
+
   def downloadRepository(r: Repository, targetDir: String): Option[File] = {
+    val githubdir: String = createDirectoryWithDate(targetDir)
     try {
       val repoFile = new File(
-        targetDir +
+        githubdir +
           s"/repo~${r.login}~${r.name}~${r.id}~${r.fork}~${r.language}~${r.defaultBranch}" +
           s"~${r.stargazersCount}.zip")
       log.info(s"Downloading $repoFile")
@@ -146,14 +157,20 @@ object GitHubApiHelper extends Logger {
     }
   }
 
-   def cloneRepository(url: String, targetDir: String): Unit = {
+  def cloneRepository(r: Repository, url: String, targetDir: String): Unit = {
+    val githubdir = createDirectoryWithDate(targetDir);
+    val filePath =  githubdir +
+      s"/repo~${r.login}~${r.name}~${r.id}~${r.fork}~${r.language}~${r.defaultBranch}" +
+      s"~${r.stargazersCount}"
+    log.info(s"Downloading $filePath")
     try {
-      val file = new File(targetDir)
+      val file = new File(filePath)
       val clone = new CloneCommand()
       clone.setBare(false)
-      clone.setCloneAllBranches(true)
+      clone.setCloneAllBranches(false)
       clone.setDirectory(file).setURI(url)
       clone.call()
+      GitHubRepoDownloader.zipActor ! filePath
     } catch {
       case x: Throwable =>
         log.error(s"Failed to download $url", x)
@@ -171,7 +188,7 @@ object GitHubRepoCrawlerApp {
 
       case Success(since) =>
         log.info(s"Downloading repo since : $since")
-        repoDownloader ! DownloadPublicRepos(since)
+        repoDownloader ! DownloadPublicRepos(since, args(1))
 
       case Failure(ex: NumberFormatException) if !args(0).isEmpty =>
         log.info(s"Downloading repo for organisation:" + args(0))
@@ -185,16 +202,22 @@ object GitHubRepoCrawlerApp {
     log.info("page count :" + pageCount)
     (1 to pageCount) foreach { page =>
       getAllGitHubReposForOrg(organizationName, page).filter(x => !x.fork && x.language == "Java")
-        .map(x => downloadRepository(x, KodeBeagleConfig.githubDir))
+        .map(x => cloneRepository(x,s"https://github.com/${x.login}/${x.name}",
+        KodeBeagleConfig.githubDir))
     }
-
   }
 
-  def downloadFromRepoIdRange(since: Int): Int = {
+  def downloadFromRepoIdRange(since: Int, zipOrClone: String): Int = {
     val (allGithubRepos, next) = getAllGitHubRepos(since)
     allGithubRepos.filter(x => x("fork") == "false").distinct
       .flatMap(fetchDetails).distinct.filter(x => x.language == "Java" && !x.fork)
-      .map(x => downloadRepository(x, KodeBeagleConfig.githubDir))
+      .map { x =>
+      if (zipOrClone.equalsIgnoreCase("clone")) {
+        cloneRepository(x, s"https://github.com/${x.login}/${x.name}",
+          KodeBeagleConfig.githubDir)
+     }
+      else downloadRepository(x, KodeBeagleConfig.githubDir)
+    }
     next
   }
 }
