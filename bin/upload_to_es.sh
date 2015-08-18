@@ -25,6 +25,7 @@ curl -XDELETE 'http://localhost:9201/sourcefile/'
 curl -XDELETE 'http://localhost:9201/repository/'
 curl -XDELETE 'http://localhost:9201/importsmethods/'
 curl -XDELETE 'http://localhost:9201/statistics/'
+curl -XDELETE 'http://localhost:9201/suggestion/'
 
 # create a kodebeagle index
 curl -XPUT 'http://localhost:9201/kodebeagle/'
@@ -139,6 +140,34 @@ curl -XPUT 'http://localhost:9201/importsmethods/' -d '{
             }
         }
     }
+}'
+
+
+curl -XPUT 'http://localhost:9201/suggestion/' -d '{
+    "suggestion": {
+        "mappings": {
+            "typesuggestion": {
+                "properties": {
+                    "imports": {
+                        "properties": {
+                            "importExactName": {
+                                "type": "string"
+                            },
+                            "importName": {
+                                "type": "string",
+                                "index" : "not_analyzed"
+                            }
+                        }
+                    },
+                    "score": {
+                        "type": "long",
+                        "index" : "not_analyzed"
+                    }
+                }
+            }
+        }
+    }
+
 }'
 
 
