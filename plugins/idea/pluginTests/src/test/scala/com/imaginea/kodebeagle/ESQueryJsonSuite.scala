@@ -20,6 +20,9 @@ package com.imaginea.kodebeagle
 import com.imaginea.kodebeagle.`object`.WindowObjects
 import com.imaginea.kodebeagle.util.JSONUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
+
+import scala.collection.JavaConverters._
+
 import scala.collection.JavaConversions._
 
 class ESQueryJsonSuite extends FunSuite with BeforeAndAfterAll{
@@ -27,14 +30,34 @@ class ESQueryJsonSuite extends FunSuite with BeforeAndAfterAll{
   private val windowObjects = WindowObjects.getInstance()
   windowObjects.setEsURL("http://labs.imaginea.com/kodebeagle")
 
-  test("actualJSON should match with expectedJSON") {
-    val imortsSet = Set("java.util.Map")
-    val size = 10
-    val actualJSON = new JSONUtils().getESQueryJson(imortsSet, size)
-    val expectedJSON = "{\"query\":{\"bool\":{\"must\":[" +
-      "{\"term\":{\"typeimportsmethods.tokens.importName\":\"java.util.map\"}}]," +
-      "\"mustNot\":[],\"should\":[]}},\"from\":0,\"size\":10," +
-      "\"sort\":[{\"score\":{\"order\":\"desc\"}}]}"
+  test("Testing json for imports with methods") {
+    val importVsMethods = Map("java.util.List" -> Set("add").asJava,
+      "java.util.HashMap" -> Set("put").asJava)
+    val size = 30
+    val includeMethods = true
+    val actualJSON = new JSONUtils().getESQueryJson(importVsMethods.asJava, size, includeMethods)
+    val expectedJSON: String = "{\"query\":{\"filtered\":{\"filter\":{\"and\":[{\"nested\":" +
+      "{\"path\":\"tokens\",\"filter\":{\"bool\":{\"must\":[{\"term\":{\"tokens.importName\":\"" +
+      "java.util.list\"}}],\"should\":[{\"terms\":{\"tokens.methodAndLineNumbers.methodName\":" +
+      "[\"add\"]}}]}}}},{\"nested\":{\"path\":\"tokens\",\"filter\":{\"bool\":{\"must\":" +
+      "[{\"term\":{\"tokens.importName\":\"java.util.hashmap\"}}],\"should\":[{\"terms\":" +
+      "{\"tokens.methodAndLineNumbers.methodName\":[\"put\"]}}]}}}}]},\"_cache\":true}}" +
+      ",\"from\":0,\"size\":30,\"sort\":[{\"score\":{\"order\":\"desc\"}}]}";
+
+    assert(actualJSON == expectedJSON)
+  }
+
+  test("Testing json for imports only") {
+    val emptyMethods: Set[String] = Set()
+    val importVsMethods = Map("java.util.List" -> emptyMethods.asJava,
+    "java.util.HashMap" -> emptyMethods.asJava)
+    val size = 30
+    val includeMethods = false
+    val actualJSON = new JSONUtils().getESQueryJson(importVsMethods.asJava, size, includeMethods)
+    val expectedJSON: String = "{\"query\":{\"filtered\":{\"filter\":{\"and\":" +
+      "[{\"term\":{\"tokens.importName\":\"java.util.list\"}},{\"term\":" +
+      "{\"tokens.importName\":\"java.util.hashmap\"}}]},\"_cache\":true}}," +
+      "\"from\":0,\"size\":30,\"sort\":[{\"score\":{\"order\":\"desc\"}}]}"
 
     assert(actualJSON == expectedJSON)
   }

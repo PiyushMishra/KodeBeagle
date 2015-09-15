@@ -26,6 +26,8 @@ import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 class ExtractImportSuite extends FunSuite with BeforeAndAfterAll {
   private val stream: InputStream =
@@ -40,81 +42,58 @@ class ExtractImportSuite extends FunSuite with BeforeAndAfterAll {
    * We need to explore this thing to get the Project object
    * TODO : Explore mocking
    */
-  ignore("Extracted imports should match the imports in java file.") {
-    val editorDocOps = new EditorDocOps().getImports(document)
-    val expected = Set(
-      "java.io.Closeable",
-      "java.io.IOException",
-      "java.util.UUID",
-      "java.util.concurrent.ExecutionException",
-      "java.util.concurrent.TimeUnit",
-      "com.google.common.base.Objects",
-      "com.google.common.base.Preconditions",
-      "com.google.common.base.Throwables",
-      "com.google.common.util.concurrent.SettableFuture",
-      "io.netty.channel.Channel",
-      "io.netty.channel.ChannelFuture",
-      "io.netty.channel.ChannelFutureListener",
-      "org.slf4j.Logger",
-      "org.slf4j.LoggerFactory",
-      "org.apache.spark.network.protocol.ChunkFetchRequest",
-      "org.apache.spark.network.protocol.RpcRequest",
-      "org.apache.spark.network.protocol.StreamChunkId",
-      "org.apache.spark.network.util.NettyUtils"
-    )
-    assert(editorDocOps.toSet === expected)
-  }
 
   test("Excluded imports set should accept regex and FQCN.") {
-    val imports = Set(
-    "import java.io.BufferedInputStream",
-    "import java.io.FileInputStream",
-    "import java.nio.channels.FileChannel",
-    "import java.util.ArrayList",
-    "import java.util.HashSet",
-    "import java.util.List",
-    "import java.util.Set",
-    "import java.util.Iterator",
-    "import java.io.File",
-    "import javax.swing.JComponent"
-    )
+    val importVsMethods = new mutable.HashMap[String, java.util.Set[String]]();
+      importVsMethods += (
+      "java.io.BufferedReader" -> Set("read").asJava,
+      "java.io.FileInputStream" -> Set("close").asJava,
+      "java.nio.channels.FileChannel" -> Set("lock").asJava,
+      "java.util.ArrayList" -> Set("addAll", "add").asJava,
+      "java.util.HashSet" -> Set("put").asJava,
+      "java.util.List" -> Set("add").asJava,
+      "java.util.Set" -> Set("retainAll").asJava,
+      "java.util.Iterator" -> Set("hasNext", "next").asJava,
+      "java.io.File" -> Set("isDirectory").asJava,
+      "javax.swing.JComponent" -> Set("disable").asJava)
     val excludeImport = Set(
       "java.util.Array*",
       "java.io.*InputStream",
-      "javax.swing.*"
+      "javax.swing.*",
+      "java.util.Iterator"
     )
-    val editorDocOps = new EditorDocOps().excludeConfiguredImports(imports,excludeImport)
-    print(editorDocOps.toSet)
+    val editorDocOps =
+      new EditorDocOps().excludeConfiguredImports(importVsMethods.asJava, excludeImport.asJava)
     val expectedImports = Set(
-      "import java.nio.channels.FileChannel",
-      "import java.util.Set",
-      "import java.util.Iterator",
-      "import java.util.List",
-      "import java.util.HashSet",
-      "import java.io.File"
+      "java.util.List",
+      "java.nio.channels.FileChannel",
+      "java.util.HashSet",
+      "java.util.Set",
+      "java.io.BufferedReader",
+      "java.io.File"
     )
-    assert(editorDocOps.toSet === expectedImports)
+    assert(editorDocOps.keySet().toSet() === expectedImports.toSet())
   }
   ignore("Internal imports should be excluded from imports") {
     test("Internal imports should be excluded from imports") {
-      val imports = Set(
-        "import java.io.BufferedInputStream",
-        "import java.io.FileInputStream",
-        "import java.nio.channels.FileChannel",
-        "import com.imagenia.pramati.MojoP",
-        "import com.imagenia.pramati.Plan"
+      val imports = Map(
+        "java.io.BufferedInputStream" -> Set("read").asJava,
+        "java.io.FileInputStream" -> Set("close").asJava,
+        "java.nio.channels.FileChannel" -> Set("lock").asJava,
+        "com.imaginea.pramati.MojoP" -> Set("setMojo").asJava,
+        "com.imaginea.pramati.Plan" -> Set("setPlan").asJava
       )
       val internalImports = Set(
-        "import com.imagenia.pramati.MojoP",
-        "import com.imagenia.pramati.Plan"
+        "com.imaginea.pramati.MojoP",
+        "com.imaginea.pramati.Plan"
       )
-      val editorDocOps = new EditorDocOps().excludeInternalImports(imports)
+      val editorDocOps = new EditorDocOps().excludeInternalImports(imports.asJava)
       val expectedImports = Set(
-        "import java.io.BufferedInputStream",
-        "import java.io.FileInputStream",
-        "import java.nio.channels.FileChannel"
+        "java.io.BufferedInputStream",
+        "java.io.FileInputStream",
+        "java.nio.channels.FileChannel"
       )
-      assert(editorDocOps.toSet === expectedImports)
+      assert(editorDocOps.keySet === expectedImports)
     }
   }
 }

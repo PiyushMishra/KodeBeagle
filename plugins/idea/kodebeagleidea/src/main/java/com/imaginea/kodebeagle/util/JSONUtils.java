@@ -30,13 +30,19 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class JSONUtils {
-    private static final String CUSTOM_TOKENS_IMPORT_NAME = "typeimportsmethods.tokens.importName";
+    private static final String TOKENS_IMPORT_NAME = "tokens.importName";
     private static final String IMPORT_NAME = "importName";
+    private static final String TOKENS = "tokens";
+    private static final String TOKENS_METHOD_NAME = "tokens.methodAndLineNumbers.methodName";
+    private static final String METHOD_NAME = "methodName";
     private static final String IMPORT_EXACT_NAME = "importExactName";
     private static final String LINE_NUMBERS = "lineNumbers";
+    private static final String CACHE = "cache";
+    private static final String FILTER_CACHE = "_cache";
     private static final String SORT_ORDER = "desc";
     private static final String ID = "id";
     private static final String TYPEREPOSITORY_ID = "typerepository.id";
@@ -96,47 +102,96 @@ public class JSONUtils {
         return gson.toJson(repoStarsJSON).replaceAll(ID, TYPEREPOSITORY_ID);
     }
 
-    public final String getESQueryJson(final Set<String> importsInLines, final int size) {
+
+    private ESQuery getFilteredQuery(final int size) {
         ESQuery esQuery = new ESQuery();
         ESQuery.Query query = new ESQuery.Query();
         esQuery.setQuery(query);
         esQuery.setFrom(0);
         esQuery.setSize(size);
-
-        List<ESQuery.Sort> sortList = new ArrayList<ESQuery.Sort>();
-
+        List<ESQuery.Sort> sortList = new ArrayList<>();
         ESQuery.Sort sort = new ESQuery.Sort();
-
         ESQuery.Score score = new ESQuery.Score();
         score.setOrder(SORT_ORDER);
-
         sort.setScore(score);
-
         sortList.add(sort);
         esQuery.setSort(sortList);
+        ESQuery.Filtered filtered = new ESQuery.Filtered();
+        filtered.setCache(true);
+        query.setFiltered(filtered);
+        ESQuery.Filter filter = new ESQuery.Filter();
+        esQuery.getQuery().getFiltered().setFilter(filter);
+        List<ESQuery.And> andList = new ArrayList<>();
+        filter.setAnd(andList);
+        return esQuery;
+    }
 
-        ESQuery.Bool bool = new ESQuery.Bool();
-        query.setBool(bool);
-
-        List<ESQuery.Must> mustList = new ArrayList<ESQuery.Must>();
-
-        ESQuery.Must must;
-        ESQuery.Term term;
-
-        for (String nextImport : importsInLines) {
-            must = new ESQuery.Must();
+    private ESQuery.And getAndTerm(final Map.Entry<String, Set<String>> entry,
+                                   final boolean includeMethods) {
+        ESQuery.And and = new ESQuery.And();
+        if (includeMethods) {
+            ESQuery.Nested nested = new ESQuery.Nested();
+            ESQuery.Filter innerFilter = new ESQuery.Filter();
+            ESQuery.Bool bool = new ESQuery.Bool();
+            List<ESQuery.Must> mustList = getImportMustList(entry.getKey());
             bool.setMust(mustList);
-            bool.setMustNot(new ArrayList<ESQuery.Must>());
-            bool.setShould(new ArrayList<ESQuery.Must>());
-            term = new ESQuery.Term();
-            must.setTerm(term);
-            term.setImportName(nextImport.toLowerCase());
-            mustList.add(must);
+            if (!entry.getValue().isEmpty()) {
+                List<ESQuery.Should> shouldList = getMethodsShouldList(entry.getValue());
+                bool.setShould(shouldList);
+            }
+            innerFilter.setBool(bool);
+            nested.setFilter(innerFilter);
+            nested.setPath(TOKENS);
+            and.setNested(nested);
+            return and;
+        } else {
+            ESQuery.Term term = getImportTerm(entry.getKey());
+            and.setTerm(term);
+            return and;
         }
+    }
 
+    private List<ESQuery.Must> getImportMustList(final String importName) {
+        List<ESQuery.Must> mustList = new ArrayList<>();
+        ESQuery.Must must = new ESQuery.Must();
+        ESQuery.Term term = getImportTerm(importName);
+        must.setTerm(term);
+        mustList.add(must);
+        return mustList;
+    }
 
+    private ESQuery.Term getImportTerm(final String importName) {
+        ESQuery.Term term = new ESQuery.Term();
+        term.setImportName(importName.toLowerCase());
+        return term;
+    }
+
+    private List<ESQuery.Should> getMethodsShouldList(final Set<String> methods) {
+        List<ESQuery.Should> shouldList = new ArrayList<>();
+        ESQuery.Should should = new ESQuery.Should();
+        ESQuery.Terms terms = new ESQuery.Terms();
+        List<String> methodsList = new ArrayList<>(methods);
+        terms.setMethodName(methodsList);
+        should.setTerms(terms);
+        shouldList.add(should);
+        return shouldList;
+    }
+
+    public final String getESQueryJson(
+            final Map<String, Set<String>> importsInLines,
+            final int size,
+            final boolean includeMethods) {
+        ESQuery esQuery = getFilteredQuery(size);
+        List<ESQuery.And> andList = esQuery.getQuery().getFiltered().getFilter().getAnd();
+        Set<Map.Entry<String, Set<String>>> entrySet = importsInLines.entrySet();
+        for (Map.Entry<String, Set<String>> entry : entrySet) {
+            ESQuery.And and = getAndTerm(entry, includeMethods);
+            andList.add(and);
+        }
         Gson gson = new Gson();
-        return gson.toJson(esQuery).replaceAll(IMPORT_NAME, CUSTOM_TOKENS_IMPORT_NAME);
+        return gson.toJson(esQuery).replaceAll(IMPORT_NAME,
+                TOKENS_IMPORT_NAME).replaceAll(METHOD_NAME,
+                TOKENS_METHOD_NAME).replace(CACHE, FILTER_CACHE);
     }
 
     public final List<Integer> getLineNumbers(final Collection<String> imports,

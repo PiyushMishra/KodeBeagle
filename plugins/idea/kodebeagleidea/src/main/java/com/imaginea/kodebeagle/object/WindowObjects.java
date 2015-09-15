@@ -17,6 +17,7 @@
 
 package com.imaginea.kodebeagle.object;
 
+import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.components.JBScrollPane;
@@ -30,8 +31,8 @@ import javax.swing.JTree;
 @SuppressWarnings("PMD")
 public final class WindowObjects {
 
-    private static WindowObjects windowObjects = new WindowObjects();
-
+    private static final String INCLUDE_METHOD_CALLS = "Include method calls";
+    private static WindowObjects windowObjects = new WindowObjects();;
     private Project project;
     private JTree jTree;
     private Editor windowEditor;
@@ -46,8 +47,10 @@ public final class WindowObjects {
     private String applicationVersion;
     private String pluginVersion;
     private String beagleId;
-    private JPanel codePaneTinyEditorsJPanel;
+    private JPanel spotlightPaneTinyEditorsJPanel;
     private JTabbedPane jTabbedPane;
+    private int maxTinyEditors;
+    private boolean includeMethods;
 
     private WindowObjects() {
 
@@ -164,12 +167,12 @@ public final class WindowObjects {
         return windowObjects;
     }
 
-    public void setPanel(final JPanel pCodePaneTinyEditorsJPanel) {
-        this.codePaneTinyEditorsJPanel = pCodePaneTinyEditorsJPanel;
+    public void setPanel(final JPanel pspotlightPaneTinyEditorsJPanel) {
+        this.spotlightPaneTinyEditorsJPanel = pspotlightPaneTinyEditorsJPanel;
     }
 
-    public JPanel getCodePaneTinyEditorsJPanel() {
-        return codePaneTinyEditorsJPanel;
+    public JPanel getSpotlightPaneTinyEditorsJPanel() {
+        return spotlightPaneTinyEditorsJPanel;
     }
 
     public void setJTreeScrollPane(final JBScrollPane pJTreeScrollPane) {
@@ -191,5 +194,30 @@ public final class WindowObjects {
     public void setjTabbedPane(final JTabbedPane pJTabbedPane) {
         this.jTabbedPane = pJTabbedPane;
     }
+    public int getMaxTinyEditors() {
+        return maxTinyEditors;
+    }
 
+    public void setMaxTinyEditors(final int pmaxTinyEditors) {
+        this.maxTinyEditors = pmaxTinyEditors;
+    }
+
+    public void setIncludeMethods(final boolean pIncludeMethods) {
+        this.includeMethods = pIncludeMethods;
+    }
+
+    public boolean isIncludeMethods() {
+        return includeMethods;
+    }
+
+    public void saveIncludeMethods(final boolean value) {
+        PropertiesComponent propertiesComponent = PropertiesComponent.getInstance();
+        propertiesComponent.setValue(INCLUDE_METHOD_CALLS, String.valueOf(value));
+    }
+
+    public boolean retrieveIncludeMethods() {
+        PropertiesComponent propertiesComponent = PropertiesComponent.getInstance();
+        includeMethods = propertiesComponent.getBoolean(INCLUDE_METHOD_CALLS, true);
+        return includeMethods;
+    }
 }

@@ -17,7 +17,6 @@
 
 package com.imaginea.kodebeagle.util;
 
-import com.google.common.base.Preconditions;
 import com.imaginea.kodebeagle.object.WindowObjects;
 import com.imaginea.kodebeagle.ui.KBNotification;
 import com.intellij.codeInsight.highlighting.HighlightUsagesHandler;
@@ -36,70 +35,58 @@ import com.intellij.openapi.editor.markup.MarkupModel;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.roots.PackageIndex;
+import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiImportList;
-import com.intellij.psi.PsiImportStatementBase;
-import com.intellij.psi.PsiJavaCodeReferenceElement;
+import com.intellij.psi.PsiImportStatement;
 import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiPackage;
+import com.intellij.psi.util.ClassUtil;
+import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.ui.Gray;
 import com.intellij.ui.JBColor;
 import java.awt.Color;
+import java.io.File;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.StringTokenizer;
 import java.util.TreeSet;
-import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import org.jetbrains.annotations.NotNull;
 
 public class EditorDocOps {
+    private static final String IMPLICIT_IMPORT = "java.lang";
+    private static final String JAVA_IO_TMP_DIR = "java.io.tmpdir";
+    private static final String FILE_EXTENSION = "java";
     private WindowObjects windowObjects = WindowObjects.getInstance();
     private WindowEditorOps windowEditorOps = new WindowEditorOps();
-    private static final String JAVA_IO_TMP_DIR = "java.io.tmpdir";
     private static final Color HIGHLIGHTING_COLOR =
             new JBColor(new Color(255, 250, 205), Gray._100);
     public static final char DOT = '.';
-    private static final String FILE_EXTENSION = "java";
 
-    public final Set<String> importsInLines(final Iterable<String> lines,
-                                            final Iterable<String> imports) {
-        Set<String> importsInLines = new HashSet<String>();
-
-        for (String line : lines) {
-            StringTokenizer stringTokenizer = new StringTokenizer(line);
-            while (stringTokenizer.hasMoreTokens()) {
-                String token = stringTokenizer.nextToken();
-                for (String nextImport : imports) {
-                    String shortImportName = nextImport.substring(nextImport.lastIndexOf(DOT) + 1);
-                    if (token.equalsIgnoreCase(shortImportName)) {
-                        importsInLines.add(nextImport);
-                    }
-                }
-            }
-        }
-        return importsInLines;
-    }
-
-    public final Set<String> getLines(final Editor projectEditor, final int distance) {
-        Set<String> lines = new HashSet<String>();
+    public final Pair<Integer, Integer> getLineOffSets(final Editor projectEditor,
+                                                       final int distance) {
         Document document = projectEditor.getDocument();
-        String regex = "(\\s*(import|\\/?\\*|//)\\s+.*)|\\\".*";
         SelectionModel selectionModel = projectEditor.getSelectionModel();
         int head = 0;
         int tail = document.getLineCount() - 1;
-
         if (selectionModel.hasSelection()) {
             head = document.getLineNumber(selectionModel.getSelectionStart());
             tail = document.getLineNumber(selectionModel.getSelectionEnd());
@@ -120,87 +107,145 @@ public class EditorDocOps {
                 tail = currentLine + distance;
             }
         }
-
-        for (int j = head; j <= tail; j++) {
-            String line =
-                    document.getCharsSequence().subSequence(document.getLineStartOffset(j),
-                            document.getLineEndOffset(j)).toString();
-            String cleanedLine = line.replaceFirst(regex, "").replaceAll("\\W+", " ").trim();
-            if (!cleanedLine.isEmpty()) {
-                lines.add(cleanedLine);
-            }
-        }
-        return lines;
+        int start = document.getLineStartOffset(head);
+        int end = document.getLineEndOffset(tail);
+        Pair<Integer, Integer> pair = new Pair<>(start, end);
+        return pair;
     }
 
-    public final Set<String> getImports(@NotNull final Document document) {
-        PsiDocumentManager psiInstance = PsiDocumentManager.getInstance(windowObjects.getProject());
-        Set<String> imports = new HashSet<String>();
-        if (psiInstance != null && (psiInstance.getPsiFile(document)) != null) {
-            PsiFile psiFile = psiInstance.getPsiFile(document);
-            if (psiFile != null
-                    && psiFile.getFileType().getDefaultExtension().equals(FILE_EXTENSION)) {
-                PsiJavaFile psiJavaFile = (PsiJavaFile) psiFile;
-                PsiImportList psiImportList = psiJavaFile.getImportList();
-                if (psiImportList != null) {
-                    PsiImportStatementBase[] importStatements =
-                            psiImportList.getAllImportStatements();
-                    for (PsiImportStatementBase psiImportStatementBase : importStatements) {
-                        if (psiImportStatementBase.getImportReference() != null) {
-                            PsiJavaCodeReferenceElement importReference =
-                                    psiImportStatementBase.getImportReference();
-                            if (importReference != null) {
-                                imports.add(importReference.getCanonicalText());
-                            }
-                        }
+    public final Map<String, Set<String>> getImportInLines(final Editor projectEditor,
+                                                           final Pair<Integer, Integer> pair) {
+        PsiDocumentManager psiInstance =
+                PsiDocumentManager.getInstance(windowObjects.getProject());
+        PsiJavaFile psiJavaFile =
+                (PsiJavaFile) psiInstance.getPsiFile(projectEditor.getDocument());
+        PsiJavaElementVisitor psiJavaElementVisitor =
+                new PsiJavaElementVisitor(pair.getFirst(), pair.getSecond());
+        Map<String, Set<String>> finalImports = new HashMap<>();
+        if (psiJavaFile != null && psiJavaFile.findElementAt(pair.getFirst()) != null) {
+            PsiElement psiElement = psiJavaFile.findElementAt(pair.getFirst());
+            final PsiElement psiMethod =  PsiTreeUtil.getParentOfType(psiElement, PsiMethod.class);
+            if (psiMethod != null) {
+                psiMethod.accept(psiJavaElementVisitor);
+            } else {
+                final PsiClass psiClass = PsiTreeUtil.getParentOfType(psiElement, PsiClass.class);
+                if (psiClass != null) {
+                    psiClass.accept(psiJavaElementVisitor);
+                }
+            }
+            Map<String, Set<String>> importVsMethods = psiJavaElementVisitor.getImportVsMethods();
+            finalImports = getImportsAndMethodsAfterValidation(psiJavaFile, importVsMethods);
+        }
+        return removeImplicitImports(finalImports);
+    }
+
+    private Map<String, Set<String>> getImportsAndMethodsAfterValidation(
+            final PsiJavaFile javaFile, final Map<String, Set<String>> importsVsMethods) {
+        Map<String, Set<String>> finalImportsWithMethods =
+                getFullyQualifiedImportsWithMethods(javaFile, importsVsMethods);
+        Set<String> imports = importsVsMethods.keySet();
+        Set<PsiPackage> importedPackages = getOnDemandImports(javaFile);
+        if (!importedPackages.isEmpty()) {
+            for (PsiPackage psiPackage : importedPackages) {
+                for (String psiImport : imports) {
+                    if (psiPackage.containsClassNamed(ClassUtil.extractClassName(psiImport))) {
+                        finalImportsWithMethods.put(psiImport, importsVsMethods.get(psiImport));
                     }
                 }
             }
         }
-        return imports;
+        return finalImportsWithMethods;
     }
 
-    public final Set<String> excludeInternalImports(@NotNull final Set<String> imports) {
-        final Set<String> internalImports = new HashSet<String>();
+    private Map<String, Set<String>> getFullyQualifiedImportsWithMethods(
+            final PsiJavaFile javaFile, final Map<String, Set<String>> importVsMethods) {
+        Map<String, Set<String>> fullyQualifiedImportsWithMethods = new HashMap<>();
+        PsiImportList importList = javaFile.getImportList();
+        Collection<PsiImportStatement> importStatements =
+                PsiTreeUtil.findChildrenOfType(importList, PsiImportStatement.class);
+        for (PsiImportStatement importStatement : importStatements) {
+            if (!importStatement.isOnDemand()) {
+                String qualifiedName = importStatement.getQualifiedName();
+                if (importVsMethods.containsKey(qualifiedName)) {
+                    fullyQualifiedImportsWithMethods.put(qualifiedName,
+                            importVsMethods.get(qualifiedName));
+                }
+            }
+        }
+        return fullyQualifiedImportsWithMethods;
+    }
+
+    private Set<PsiPackage> getOnDemandImports(final PsiJavaFile javaFile) {
+        Set<PsiPackage> psiPackages = new HashSet<>();
+        PsiElement[] packageImports = javaFile.getOnDemandImports(false, false);
+        for (PsiElement packageImport : packageImports) {
+            if (packageImport instanceof PsiPackage) {
+                psiPackages.add((PsiPackage) packageImport);
+            }
+        }
+        return psiPackages;
+    }
+
+
+    private Map<String, Set<String>> removeImplicitImports(
+            final Map<String, Set<String>> importsVsMethods) {
+        Map<String, Set<String>> finalImportsVsMethods = new HashMap<>();
+        finalImportsVsMethods.putAll(importsVsMethods);
+        for (Map.Entry<String, Set<String>> entry : importsVsMethods.entrySet()) {
+            String key = entry.getKey();
+            if (key.startsWith(IMPLICIT_IMPORT)) {
+                finalImportsVsMethods.remove(key);
+            }
+        }
+        return finalImportsVsMethods;
+    }
+
+    public final Map<String, Set<String>> excludeInternalImports(
+            @NotNull final Map<String, Set<String>> importVsMethods) {
+        final Map<String, Set<String>> importsAfterExclusion = new HashMap<>();
+        Set<Map.Entry<String, Set<String>>> entrySet = importVsMethods.entrySet();
+        Iterator<Map.Entry<String, Set<String>>> myIterator = entrySet.iterator();
         PackageIndex packageIndex = PackageIndex.getInstance(windowObjects.getProject());
-        for (String importName : imports) {
-            int indexOfDot = importName.lastIndexOf(DOT);
+        while (myIterator.hasNext()) {
+            Map.Entry<String, Set<String>> entry = myIterator.next();
+            int indexOfDot = entry.getKey().lastIndexOf(DOT);
             String packageName;
             if (indexOfDot != -1) {
-                packageName = importName.substring(0, importName.lastIndexOf(DOT));
+                packageName = entry.getKey().substring(0, entry.getKey().lastIndexOf(DOT));
                 List<VirtualFile> packageDirectories = Arrays.asList(
                         packageIndex.getDirectoriesByPackageName(packageName, false));
                 if (packageDirectories.size() > 0) {
                     VirtualFile packageDirectory = packageDirectories.get(0);
                     if (!packageDirectory.isInLocalFileSystem()) {
-                        internalImports.add(importName);
+                        importsAfterExclusion.put(entry.getKey(), entry.getValue());
                     }
                 }
             }
         }
-        return internalImports;
+        return importsAfterExclusion;
     }
 
-    public final Set<String> excludeConfiguredImports(final Set<String> imports,
-                                                      final Set<String> excludeImports) {
-        Set<String> excludedImports = new HashSet<String>();
-        imports.removeAll(excludeImports);
-        excludedImports.addAll(imports);
+    public final Map<String, Set<String>> excludeConfiguredImports(
+            final Map<String, Set<String>> importsVsMethods, final Set<String> excludeImports) {
+        Map<String, Set<String>> finalImportsVsMethods = new HashMap<>();
+        finalImportsVsMethods.putAll(importsVsMethods);
+        Set<Map.Entry<String, Set<String>>> entrySet =  importsVsMethods.entrySet();
         for (String importStatement : excludeImports) {
-            try {
-                Pattern pattern = Pattern.compile(importStatement);
-                for (String nextImport : imports) {
-                    Matcher matcher = pattern.matcher(nextImport);
+             Pattern pattern = Pattern.compile(importStatement);
+             for (Map.Entry<String, Set<String>> entry : entrySet) {
+                try {
+                    String entryImport = entry.getKey();
+                    Matcher matcher = pattern.matcher(entryImport);
                     if (matcher.find()) {
-                        excludedImports.remove(nextImport);
+                        finalImportsVsMethods.remove(entryImport);
                     }
+                } catch (PatternSyntaxException e) {
+                    KBNotification.getInstance().error(e);
+                    e.printStackTrace();
                 }
-            } catch (PatternSyntaxException e) {
-                KBNotification.getInstance().error(e);
-                e.printStackTrace();
             }
         }
-        return excludedImports;
+        return finalImportsVsMethods;
     }
 
     public final VirtualFile getVirtualFile(final String fileName,
@@ -214,24 +259,12 @@ public class EditorDocOps {
         final String digest = Utils.getInstance().getDigestAsString(trimmedFileName);
         final String fullFilePath = Utils.getInstance()
                 .createFileWithContents(displayFileName, contents, tempDir, digest);
-        return getVirtualFile(fullFilePath, displayFileName, contents, tempDir);
-    }
-
-    private VirtualFile getVirtualFile(final String filePath, final String displayFileName,
-                                             final String contents, final String baseDir)
-            throws IOException {
-
-        VirtualFile virtualFile = LocalFileSystem.getInstance().findFileByPath(filePath);
+        // Refreshing File System is required so that it is aware of newly created files
+        final VirtualFile virtualFile = LocalFileSystem.getInstance()
+                .refreshAndFindFileByIoFile(new File(fullFilePath));
         if (virtualFile == null) {
-            // This happens when intellij is confused about the existence of the file.
-            // Essentially it thinks the file was deleted, but we restored it.
-            // Unfortunately, it can not infer the fact that it was restored again.
-            String digest = UUID.randomUUID().toString().substring(0, 10);
-            final String fullFilePath = Utils.getInstance()
-                            .createFileWithContents(displayFileName, contents, baseDir, digest);
-            virtualFile = LocalFileSystem.getInstance().findFileByPath(fullFilePath);
-            Preconditions.checkNotNull(virtualFile,
-                    "Virtual file should not be null. Can be an issue with FileSystem.");
+            throw new IllegalArgumentException("Virtual file should not be null."
+                    + " Can be an issue with FileSystem.");
         }
         windowEditorOps.setWriteStatus(virtualFile, false);
         return virtualFile;

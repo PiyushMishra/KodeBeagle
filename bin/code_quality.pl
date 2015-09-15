@@ -84,7 +84,7 @@ while (<FILE>) {
     }
 }
 
-if ($count > 5) { # allowing 5 violations
+if ($count > 4) { # allowing 4 violations
     print "ERROR: Your code adds PMD violations.!!\n";
     print $string;
     exit(1);

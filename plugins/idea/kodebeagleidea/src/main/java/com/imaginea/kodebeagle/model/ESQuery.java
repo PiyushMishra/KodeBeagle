@@ -42,31 +42,110 @@ public class ESQuery {
     }
 
     public static class Query {
+        private Filtered filtered;
+
+        public final void setFiltered(final Filtered pFiltered) {
+            this.filtered = pFiltered;
+        }
+
+        public final Filtered getFiltered() {
+            return filtered;
+        }
+    }
+
+    public static class Filtered {
+        private Filter filter;
+        private boolean cache;
+
+        public final Filter getFilter() {
+            return filter;
+        }
+
+        public final void setFilter(final Filter pFilter) {
+            this.filter = pFilter;
+        }
+
+        public final boolean isCache() {
+            return cache;
+        }
+
+        public final void setCache(final boolean pCache) {
+            this.cache = pCache;
+        }
+    }
+
+    public static class Filter {
+        private List<And> and;
         private Bool bool;
+
+        public final Bool getBool() {
+            return bool;
+        }
 
         public final void setBool(final Bool pBool) {
             this.bool = pBool;
         }
 
-        public final Bool getBool() {
-            return bool;
+        public final List<And> getAnd() {
+            return and;
+        }
+
+        public final void setAnd(final List<And> pAnd) {
+            this.and = pAnd;
+        }
+    }
+
+    public static class And {
+        private Nested nested;
+        private Term term;
+
+        public final Term getTerm() {
+            return term;
+        }
+
+        public final void setTerm(final Term pTerm) {
+            this.term = pTerm;
+        }
+
+        public final Nested getNested() {
+            return nested;
+        }
+
+        public final void setNested(final Nested pNested) {
+            this.nested = pNested;
+        }
+    }
+
+    public static class Nested {
+        private String path;
+        private Filter filter;
+
+        public final String getPath() {
+            return path;
+        }
+
+        public final void setPath(final String pPath) {
+            this.path = pPath;
+        }
+
+        public final Filter getFilter() {
+            return filter;
+        }
+
+        public final void setFilter(final Filter pFilter) {
+            this.filter = pFilter;
         }
     }
 
     public static class Bool {
         private List<Must> must;
-        private List<Must> mustNot;
-        private List<Must> should;
+        private List<Should> should;
 
         public final void setMust(final List<Must> pMust) {
             this.must = pMust;
         }
 
-        public final void setMustNot(final List<Must> pMustNot) {
-            this.mustNot = pMustNot;
-        }
-
-        public final void setShould(final List<Must> pShould) {
+        public final void setShould(final List<Should> pShould) {
             this.should = pShould;
         }
 
@@ -74,11 +153,7 @@ public class ESQuery {
             return must;
         }
 
-        public final List<Must> getMustNot() {
-            return mustNot;
-        }
-
-        public final List<Must> getShould() {
+        public final List<Should> getShould() {
             return should;
         }
     }
@@ -95,6 +170,18 @@ public class ESQuery {
         }
     }
 
+    public static class Should {
+        private Terms terms;
+
+        public final Terms getTerms() {
+            return terms;
+        }
+
+        public final void setTerms(final Terms pTerms) {
+            this.terms = pTerms;
+        }
+    }
+
     public static class Term {
         private String importName;
 
@@ -104,6 +191,18 @@ public class ESQuery {
 
         public final String getImportName() {
             return importName;
+        }
+    }
+
+    public static class Terms {
+        private List<String> methodName;
+
+        public final List<String> getMethodName() {
+            return methodName;
+        }
+
+        public final void setMethodName(final List<String> pMethodName) {
+            this.methodName = pMethodName;
         }
     }
 

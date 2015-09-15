@@ -67,6 +67,11 @@
         <keyboard-shortcut keymap="$default" first-keystroke="alt 8"/>
       </action>
 
+      <action id="KodeBeagle.IncludeMethods"
+              class="com.imaginea.kodebeagle.action.IncludeMethodsToggleAction" text="Include method calls"
+              description="Include method calls in your search"
+              icon="AllIcons.Nodes.Method">
+      </action>
     </actions>
 
     <extensions defaultExtensionNs="com.intellij">

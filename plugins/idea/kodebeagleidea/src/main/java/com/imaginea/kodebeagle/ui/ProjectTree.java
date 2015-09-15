@@ -17,7 +17,7 @@
 
 package com.imaginea.kodebeagle.ui;
 
-import com.imaginea.kodebeagle.util.WindowEditorOps;
+import com.imaginea.kodebeagle.tasks.FetchFileContentTask;
 import com.imaginea.kodebeagle.model.CodeInfo;
 import com.imaginea.kodebeagle.object.WindowObjects;
 import com.imaginea.kodebeagle.util.ESUtils;
@@ -25,21 +25,22 @@ import com.imaginea.kodebeagle.util.EditorDocOps;
 import com.imaginea.kodebeagle.util.JSONUtils;
 import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.editor.Document;
-import com.intellij.openapi.editor.EditorFactory;
+import com.intellij.openapi.editor.impl.DocumentImpl;
 import com.intellij.openapi.fileEditor.FileEditorManager;
-import com.intellij.openapi.progress.PerformInBackgroundOption;
-import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.vfs.VirtualFile;
-import org.jetbrains.annotations.NotNull;
 
 import java.awt.Component;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.io.IOException;
 import java.net.URL;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -63,7 +64,6 @@ import javax.swing.tree.TreeNode;
 public class ProjectTree {
     private static final String OPEN_IN_NEW_TAB = "Open in New Tab";
     private WindowObjects windowObjects = WindowObjects.getInstance();
-    private WindowEditorOps windowEditorOps = new WindowEditorOps();
     private ESUtils esUtils = new ESUtils();
     private JSONUtils jsonUtils = new JSONUtils();
     private EditorDocOps editorDocOps = new EditorDocOps();
@@ -84,19 +84,11 @@ public class ProjectTree {
                         windowObjects.getjTree().getLastSelectedPathComponent();
                 if (selectedNode != null && selectedNode.isLeaf() && root.getChildCount() > 0) {
                     final CodeInfo codeInfo = (CodeInfo) selectedNode.getUserObject();
-                    ProgressManager.getInstance().run(new FetchFileContentTask(codeInfo));
+                    ProgressManager.getInstance().run(new FetchFileContentTask(
+                            windowObjects.getProject(), codeInfo));
                 }
             }
         };
-    }
-
-    private void updateMainPanePreviewEditor(final List<Integer> lineNumbers,
-                                             final String fileContents) {
-        final Document mainPanePreviewEditorDocument =
-                windowObjects.getWindowEditor().getDocument();
-        String contentsInLines =
-                editorDocOps.getContentsInLines(fileContents, lineNumbers);
-        windowEditorOps.writeToDocument(contentsInLines, mainPanePreviewEditorDocument);
     }
 
     public final Map<String, ArrayList<CodeInfo>> updateProjectNodes(
@@ -178,6 +170,40 @@ public class ProjectTree {
 
                     menu.show(mouseEvent.getComponent(), mouseEvent.getX(), mouseEvent.getY());
                 }
+                doubleClickListener(mouseEvent);
+            }
+        };
+    }
+
+    private void doubleClickListener(final MouseEvent mouseEvent) {
+        if (mouseEvent.getClickCount() == 2) {
+            DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode)
+                    windowObjects.getjTree().getLastSelectedPathComponent();
+            if (selectedNode != null && selectedNode.isLeaf()) {
+                CodeInfo codeInfo = (CodeInfo) selectedNode.getUserObject();
+                showEditor(codeInfo);
+            }
+        }
+    }
+
+    public final KeyListener getKeyListener() {
+        return new KeyAdapter() {
+            @Override
+            public void keyTyped(final KeyEvent keyEvent) {
+                super.keyTyped(keyEvent);
+                if (keyEvent.getKeyChar() == KeyEvent.VK_ENTER) {
+                    DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode)
+                            windowObjects.getjTree().getLastSelectedPathComponent();
+                    if (selectedNode.isLeaf()) {
+                        final CodeInfo codeInfo = (CodeInfo) selectedNode.getUserObject();
+                        try {
+                            showEditor(codeInfo);
+                        } catch (Exception e) {
+                            KBNotification.getInstance().error(e);
+                            e.printStackTrace();
+                        }
+                    }
+                }
             }
         };
     }
@@ -195,58 +221,37 @@ public class ProjectTree {
         return url;
     }
 
+    private void showEditor(final CodeInfo codeInfo) {
+        VirtualFile virtualFile =
+                null;
+        try {
+            virtualFile = editorDocOps.getVirtualFile(codeInfo.getAbsoluteFileName(),
+                    codeInfo.getDisplayFileName(), codeInfo.getContents());
+        } catch (IOException | NoSuchAlgorithmException e) {
+            KBNotification.getInstance().error(e);
+            e.printStackTrace();
+        }
+        if (virtualFile != null) {
+            FileEditorManager.getInstance(windowObjects.getProject()).
+                    openFile(virtualFile, true, true);
+        }
+        Document document = new DocumentImpl(codeInfo.getContents(), true, false);
+        editorDocOps.addHighlighting(codeInfo.getLineNumbers(), document);
+        editorDocOps.gotoLine(codeInfo.getLineNumbers().get(0), document);
+    }
+
     private AbstractAction addOpenInNewTabMenuItem(final CodeInfo codeInfo) {
         return new AbstractAction() {
             @Override
             public void actionPerformed(final ActionEvent actionEvent) {
                 try {
-                    VirtualFile virtualFile =
-                            editorDocOps.getVirtualFile(codeInfo.getAbsoluteFileName(),
-                                    codeInfo.getDisplayFileName(), codeInfo.getContents());
-                    FileEditorManager.getInstance(windowObjects.getProject()).
-                            openFile(virtualFile, true, true);
-                    Document document =
-                            EditorFactory.getInstance().
-                                    createDocument(codeInfo.getContents());
-                    editorDocOps.addHighlighting(codeInfo.getLineNumbers(), document);
-                    editorDocOps.gotoLine(codeInfo.getLineNumbers().get(0), document);
+                    showEditor(codeInfo);
                 } catch (Exception e) {
                     KBNotification.getInstance().error(e);
                     e.printStackTrace();
                 }
             }
         };
-    }
-
-    private class FetchFileContentTask extends Task.Backgroundable {
-
-        private static final String KODE_BEAGLE = "KodeBeagle";
-        private static final String FETCHING_FILE_CONTENT = "Fetching file content ...";
-        private final CodeInfo codeInfo;
-        private String fileContents;
-
-        public FetchFileContentTask(final CodeInfo pCodeInfo) {
-            super(windowObjects.getProject(),
-                    KODE_BEAGLE, true, PerformInBackgroundOption.ALWAYS_BACKGROUND);
-            this.codeInfo = pCodeInfo;
-        }
-
-        @Override
-        public void run(@NotNull final ProgressIndicator indicator) {
-            indicator.setText(FETCHING_FILE_CONTENT);
-            indicator.setFraction(0.0);
-            String fileName = codeInfo.getAbsoluteFileName();
-            fileContents = esUtils.getContentsForFile(fileName);
-
-            //Setting contents so that we can use that for Open in New Tab
-            codeInfo.setContents(fileContents);
-            indicator.setFraction(1.0);
-        }
-
-        @Override
-        public void onSuccess() {
-            updateMainPanePreviewEditor(codeInfo.getLineNumbers(), fileContents);
-        }
     }
 
     public final JTreeCellRenderer getJTreeCellRenderer() {

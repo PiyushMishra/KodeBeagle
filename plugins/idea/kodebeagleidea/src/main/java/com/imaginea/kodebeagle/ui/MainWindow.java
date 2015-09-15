@@ -20,10 +20,12 @@ package com.imaginea.kodebeagle.ui;
 import com.imaginea.kodebeagle.action.CollapseProjectTreeAction;
 import com.imaginea.kodebeagle.action.EditSettingsAction;
 import com.imaginea.kodebeagle.action.ExpandProjectTreeAction;
+import com.imaginea.kodebeagle.action.IncludeMethodsToggleAction;
 import com.imaginea.kodebeagle.action.RefreshAction;
+import com.imaginea.kodebeagle.model.Identity;
 import com.imaginea.kodebeagle.object.WindowObjects;
 import com.imaginea.kodebeagle.settings.ui.LegalNotice;
-import com.imaginea.kodebeagle.settings.ui.SettingsConfigurable;
+import com.imaginea.kodebeagle.util.UIUtils;
 import com.imaginea.kodebeagle.util.WindowEditorOps;
 import com.intellij.ide.plugins.IdeaPluginDescriptor;
 import com.intellij.ide.plugins.PluginManager;
@@ -34,6 +36,7 @@ import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.EditorFactory;
+import com.intellij.openapi.editor.impl.DocumentImpl;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileTypes.FileTypeManager;
@@ -62,7 +65,7 @@ public class MainWindow implements ToolWindowFactory {
     public static final String JAVA = "java";
     private static final double DIVIDER_LOCATION = 0.8;
     private static final String ALL_TAB = "All";
-    private static final String FEATURED_TAB = "Spotlight";
+    private static final String SPOTLIGHT_TAB = "Spotlight";
     private static final int EDITOR_SCROLL_PANE_WIDTH = 200;
     private static final int EDITOR_SCROLL_PANE_HEIGHT = 300;
     public static final String KODEBEAGLE = "KodeBeagle";
@@ -74,6 +77,7 @@ public class MainWindow implements ToolWindowFactory {
     private WindowEditorOps windowEditorOps = new WindowEditorOps();
     private WindowObjects windowObjects = WindowObjects.getInstance();
     private PropertiesComponent propertiesComponent = PropertiesComponent.getInstance();
+    private UIUtils uiUtils = new UIUtils();
 
     @Override
     public final void createToolWindowContent(final Project project, final ToolWindow toolWindow) {
@@ -84,15 +88,15 @@ public class MainWindow implements ToolWindowFactory {
         jTree.setRootVisible(false);
         jTree.setAutoscrolls(true);
 
-        if (!propertiesComponent.isValueSet(SettingsConfigurable.BEAGLE_ID)) {
+        if (!propertiesComponent.isValueSet(Identity.BEAGLE_ID)) {
             windowObjects.setBeagleId(UUID.randomUUID().toString());
-            propertiesComponent.setValue(SettingsConfigurable.BEAGLE_ID,
+            propertiesComponent.setValue(Identity.BEAGLE_ID,
                     windowObjects.getBeagleId());
         } else {
-            windowObjects.setBeagleId(propertiesComponent.getValue(SettingsConfigurable.BEAGLE_ID));
+            windowObjects.setBeagleId(propertiesComponent.getValue(Identity.BEAGLE_ID));
         }
 
-        Document document = EditorFactory.getInstance().createDocument("");
+        Document document = new DocumentImpl("", true, false);
         Editor windowEditor =
                 EditorFactory.getInstance().createEditor(
                         document, project, FileTypeManager.getInstance()
@@ -125,7 +129,6 @@ public class MainWindow implements ToolWindowFactory {
         final JBScrollPane editorScrollPane = new JBScrollPane();
         editorScrollPane.getViewport().setBackground(JBColor.white);
         editorScrollPane.setViewportView(editorPanel);
-        editorScrollPane.setAutoscrolls(true);
         editorScrollPane.setPreferredSize(new Dimension(EDITOR_SCROLL_PANE_WIDTH,
                 EDITOR_SCROLL_PANE_HEIGHT));
         editorScrollPane.getVerticalScrollBar().setUnitIncrement(UNIT_INCREMENT);
@@ -134,15 +137,15 @@ public class MainWindow implements ToolWindowFactory {
         windowObjects.setPanel(editorPanel);
 
         final JTabbedPane jTabbedPane = new JBTabbedPane();
-        jTabbedPane.add(FEATURED_TAB, editorScrollPane);
+        jTabbedPane.add(SPOTLIGHT_TAB, editorScrollPane);
         jTabbedPane.add(ALL_TAB, jSplitPane);
         windowObjects.setjTabbedPane(jTabbedPane);
         final Editor projectEditor = FileEditorManager.getInstance(project).getSelectedTextEditor();
         // Display initial help information here.
         if (projectEditor != null) {
-            refreshAction.showHelpInfo(RefreshAction.HELP_MESSAGE_NO_SELECTED_CODE);
+            uiUtils.showHelpInfo(RefreshAction.HELP_MESSAGE_NO_SELECTED_CODE);
         } else {
-            refreshAction.showHelpInfo(RefreshAction.EDITOR_ERROR);
+            uiUtils.showHelpInfo(RefreshAction.EDITOR_ERROR);
         }
         final JPanel mainPanel = new JPanel();
         mainPanel.setLayout((new BoxLayout(mainPanel, BoxLayout.Y_AXIS)));
@@ -160,8 +163,11 @@ public class MainWindow implements ToolWindowFactory {
         CollapseProjectTreeAction collapseProjectTreeAction = new CollapseProjectTreeAction();
         EditSettingsAction editSettingsAction = new EditSettingsAction();
         ExpandProjectTreeAction expandProjectTreeAction = new ExpandProjectTreeAction();
+        IncludeMethodsToggleAction includeMethodsToggleAction = new IncludeMethodsToggleAction();
         DefaultActionGroup group = new DefaultActionGroup();
         group.add(refreshAction);
+        group.addSeparator();
+        group.add(includeMethodsToggleAction);
         group.addSeparator();
         group.add(expandProjectTreeAction);
         group.add(collapseProjectTreeAction);

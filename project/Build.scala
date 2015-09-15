@@ -92,6 +92,7 @@ object KodeBeagleBuild extends Build {
       scalaVersion := "2.11.6",
       git.useGitDescribe := true,
       scalacOptions := scalacOptionsList,
+      //resolvers += Resolver.mavenLocal,
       updateOptions := updateOptions.value.withCachedResolution(true),
       updateOptions := updateOptions.value.withLatestSnapshots(false),
       crossPaths := false,
@@ -105,7 +106,8 @@ object KodeBeagleBuild extends Build {
 
 object Dependencies {
 
-  val spark = "org.apache.spark" %% "spark-core" % "1.3.1" // % "provided" Provided makes it not run through sbt run.
+  val spark = "org.apache.spark" %% "spark-core" % "1.4.1"
+//"org.apache.spark" %% "spark-core" % "1.3.1" // % "provided" Provided makes it not run through sbt run.
   val parserCombinator = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
   val scalaTest = "org.scalatest" %% "scalatest" % "2.2.4" % "test" 
   val slf4j = "org.slf4j" % "slf4j-log4j12" % "1.7.10"
@@ -116,9 +118,29 @@ object Dependencies {
   val config = "com.typesafe" % "config" % "1.2.1"
   val jgit = "org.eclipse.jgit" % "org.eclipse.jgit" % "3.7.0.201502260915-r"
   val commonsIO = "commons-io" % "commons-io" % "2.4"
+  val esSpark = "org.elasticsearch" % "elasticsearch-spark_2.11" % "2.1.0.Beta4" 
+  val graphx =  "org.apache.spark" % "spark-graphx_2.11" % "1.4.1" 
 
+//Eclipse dependencies for Tassal libs
+object EclipseDeps {
+  val tycho =  "org.eclipse.tycho" % "org.eclipse.jdt.core" % "3.10.0.v20140604-1726"
+  val contentType =  "org.eclipse.birt.runtime" % "org.eclipse.core.contenttype" % "3.4.200.v20130326-1255"  
+  val coreJobs =  "org.eclipse.birt.runtime" % "org.eclipse.core.jobs" % "3.5.300.v20130429-1813"
+  val coreResources =  "org.eclipse.birt.runtime" % "org.eclipse.core.resources" % "3.8.101.v20130717-0806"
+  val coreRT =  "org.eclipse.birt.runtime" % "org.eclipse.core.runtime" % "3.9.0.v20130326-1255"
+  val eqCommon =  "org.eclipse.birt.runtime" % "org.eclipse.equinox.common" % "3.6.200.v20130402-1505"                
+  val eqPref =  "org.eclipse.birt.runtime" % "org.eclipse.equinox.preferences" % "3.5.100.v20130422-1538"                
+  val eqReg =  "org.eclipse.birt.runtime" % "org.eclipse.equinox.registry" % "3.5.301.v20130717-1549"
+  val osgi =  "org.eclipse.birt.runtime" % "org.eclipse.osgi" % "3.9.1.v20130814-1242"                
+  val text =  "org.eclipse.text" % "org.eclipse.text" % "3.5.101"
+
+  val allDeps = Seq(tycho, contentType, coreJobs, coreResources, coreRT, eqCommon, eqPref, eqReg, osgi, text)
+}
+
+  
   val kodebeagle = Seq(spark, parserCombinator, scalaTest, slf4j, javaparser, json4s, config,
-    json4sJackson, jgit, commonsIO)
+    json4sJackson, jgit, commonsIO, esSpark, graphx) ++ EclipseDeps.allDeps
+
   val ideaPluginTest = Seq(scalaTest, commonsIO)
   val ideaPlugin = Seq()
 

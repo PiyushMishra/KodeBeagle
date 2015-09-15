@@ -71,6 +71,48 @@ curl -XPUT 'localhost:9201/sourcefile' -d '{
     }
 }'
 
+curl -XPUT 'localhost:9201/repotopic' -d '{
+    "mappings" : {
+      "typerepotopic" : {
+        "properties" : {
+          "defaultBranch" : {
+            "type" : "string"
+          },
+          "fork" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "type" : "long"
+          },
+          "language" : {
+            "type" : "string"
+          },
+          "login" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+	  "files":   { 
+              "type":       "object",
+              "properties": {
+                "file":     { "type": "string" },
+                "klscore":    { "type": "double" }
+              }
+          },
+	  "topic":   { 
+              "type":         "object",
+              "properties": {
+                "term":     { "type": "string" },
+                "freq":    { "type": "long" }
+              }
+          }
+        }
+      }
+    }
+  }'
+
+
 curl -XPUT 'http://localhost:9201/importsmethods/' -d '{
     "mappings": {
         "typeimportsmethods": {

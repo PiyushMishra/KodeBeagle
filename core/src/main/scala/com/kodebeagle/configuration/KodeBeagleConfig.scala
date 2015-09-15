@@ -18,19 +18,16 @@
 package com.kodebeagle.configuration
 
 import com.typesafe.config.ConfigFactory
-
 import scala.collection.JavaConversions._
+import com.typesafe.config.Config
 
-object KodeBeagleConfig {
-  val config = ConfigFactory.load()
+object KodeBeagleConfig extends ConfigReader{
+  def config: Config = ConfigFactory.load()
   var lastIndex=0
 
-  private val settings = scala.collection.mutable.HashMap[String, String]()
-
-  for (c <- config.entrySet())
-    yield settings.put(c.getKey, c.getValue.unwrapped.toString)
   // Output dir for spark job.
   private[kodebeagle] val sparkIndexOutput = get("kodebeagle.spark.index.outputDir").get
+  private[kodebeagle] val sparkCheckpointDir = get("kodebeagle.spark.checkpointDir").get
   private[kodebeagle] val sparkRepoOutput = get("kodebeagle.spark.repo.outputDir").get
   private[kodebeagle] val sparkSourceOutput = get("kodebeagle.spark.source.outputDir").get
   private[kodebeagle] val sparkMethodsOutput = get("kodebeagle.spark.method.outputDir").get
@@ -42,6 +39,12 @@ object KodeBeagleConfig {
   // This is required to use GithubAPIHelper
   private[kodebeagle] val githubDir: String = get("kodebeagle.github.crawlDir").get
   private[kodebeagle] val sparkMaster: String = get("kodebeagle.spark.master").get
+  
+  private[kodebeagle] val esNodes: String = get("kodebeagle.es.nodes").get
+  private[kodebeagle] val esPort: String = get("kodebeagle.es.port").get
+  private[kodebeagle] val esRepositoryIndex: String = get("kodebeagle.es.repositoryIndex").get
+  private[kodebeagle] val esRepoTopicIndex: String = get("kodebeagle.es.repoTopicIndex").get
+  private[kodebeagle] val esourceFileIndex: String = get("kodebeagle.es.sourceFileIndex").get
 
   def nextToken(arr: Array[String] = githubTokens): String = {
     if (lastIndex == arr.length - 1) {
@@ -52,7 +55,27 @@ object KodeBeagleConfig {
       arr(lastIndex)
     }
   }
+}
 
+object TopicModelConfig extends ConfigReader {
+  def config: Config = ConfigFactory.load(ConfigFactory.parseResources("topicmodelling.properties"))
+  private[kodebeagle] val jobName = get("kodebeagle.ml.topicmodel.jobname").get
+  private[kodebeagle] val nbgTopics = get("kodebeagle.ml.topicmodel.nBgTopics").get.toInt
+  private[kodebeagle] val nIterations = get("kodebeagle.ml.topicmodel.nIterations").get.toInt
+  private[kodebeagle] val nDescriptionWords = 
+    get("kodebeagle.ml.topicmodel.nDescriptionWords").get.toInt
+  private[kodebeagle] val chkptInterval = get("kodebeagle.ml.topicmodel.chkptInterval").get.toInt
+  private[kodebeagle] val batchSize = get("kodebeagle.ml.topicmodel.batchSize").get.toInt
+}
+
+trait ConfigReader {
+  def config: Config
+  
+  private val settings = scala.collection.mutable.HashMap[String, String]()
+
+  for (c <- config.entrySet())
+    yield settings.put(c.getKey, c.getValue.unwrapped.toString)
+    
   def get(key: String): Option[String] = settings.get(key)
 
   def set(key: String, value: String) {
@@ -60,6 +83,6 @@ object KodeBeagleConfig {
       throw new NullPointerException("key or value can't be null")
     }
     settings.put(key, value)
-  }
-
+  }  
 }
+

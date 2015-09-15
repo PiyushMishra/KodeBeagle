@@ -232,5 +232,96 @@ curl -XGET http://localhost:9201/importsmethods/_search?pretty=true -d '{
       }
    }
 }'
+```
+# Query using nested filters for imports and related methods
 
-```	
+```
+curl -XGET http://localhost:9201/importsmethods/_search?pretty=true -d '{
+  "query": {
+    "filtered": {
+      "filter": {
+        "and": [
+          {
+            "nested": {
+              "path": "tokens",
+              "filter": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "tokens.importName": "java.util.linkedlist"
+                      }
+                    }
+                  ],
+                  "should": [
+                    {
+                      "terms": {
+                        "tokens.methodAndLineNumbers.methodName": [
+                          "add"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "nested": {
+              "path": "tokens",
+              "filter": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "tokens.importName": "javax.swing.jbutton"
+                      }
+                    }
+                  ],
+                  "should": [
+                    {
+                      "terms": {
+                        "tokens.methodAndLineNumbers.methodName": [
+                          "setText"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      "_cache":true
+    }
+  }
+}'
+```
+
+#Query using filter for imports
+
+```
+curl -XGET http://localhost:9201/importsmethods/_search?pretty=true -d'{
+  "query": {
+    "filtered": {
+      "filter": {
+        "and": [
+          {
+            "term": {
+              "tokens.importName": "java.util.list"
+            }
+          },
+          {
+            "term": {
+              "tokens.importName": "java.util.hashmap"
+            }
+          }
+        ]
+      },
+      "_cache":true
+    }
+  }
+}'
+
+```
