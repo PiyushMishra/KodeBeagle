@@ -21,7 +21,7 @@ import org.apache.spark.SparkConf
 import scala.collection.JavaConversions._
 import com.kodebeagle.configuration.KodeBeagleConfig
 import org.apache.spark.SparkContext
-import com.kodebeagle.spark.SparkIndexJobHelper.createSparkContext
+import com.kodebeagle.spark.SparkIndexJobHelper._
 import org.elasticsearch.spark._
 import org.apache.spark.HashPartitioner
 import codesum.lm.main.ASTVisitors.TreeCreatorVisitor
@@ -69,7 +69,7 @@ object CreateTopicModelJob extends Logger {
   val klScoreFieldName = "klscore"
   val filesFieldName = "files"
 
-  
+
   def main(args: Array[String]): Unit = {
     var repoCounter = 0
     var fetched = 0
@@ -185,9 +185,8 @@ object CreateTopicModelJob extends Logger {
     // For each repo, map of topic terms vs their frequencies 
     val repoTopicFields = for (topic <- repoTopics) yield {
       val repoName = repoIdVsName.get(i.toLong).get
-      val topicMap = topic.map({
-        case (count, wordId) =>
-          (tokenToWordMap(wordId.toLong), count)
+      val topicMap = topic.map({ case (count, wordId) =>
+        (tokenToWordMap(wordId.toLong), count)
       }).toMap
       i += 1
       (repoName, topicMap)
@@ -198,25 +197,32 @@ object CreateTopicModelJob extends Logger {
 
     val repoSummaryRdd = sc.makeRDD(repoSummary)
     // For each repo, map of files vs their score.
-    val repoFilescore = repoSummaryRdd.map({case(repoId, fileId, klScore) => 
+    val repoFilescore = repoSummaryRdd.map({ case (repoId, fileId, klScore) =>
       val repoName = repoIdVsName.get(repoId).get
       val file = fileIdVsName.get((fileId * (-1L) - 1L)).get.split(":")(1)
       (repoName, file, klScore)
-      }).groupBy(f => f._1)
-      .map(f => (f._1, f._2.map({case (repoId, file, klscore) => (file, klscore)}).toMap))
-    
-    val updatedRepoRDD = sc.makeRDD(repoTopicFields).join(repoFilescore)
-    .map({ case(repoId, (repoTopicMap, repoFileMap)) =>
-        val esTopicMap = repoTopicMap.map(f => Map(termFieldName -> f._1, freqFieldName  -> f._2))
-        val esFilesMap = repoFileMap.map(f => Map(fileFieldName-> f._1, klScoreFieldName-> f._2))
-        val termMap = Map(topicFieldName -> esTopicMap)
-        val topicMap = Map(filesFieldName -> esFilesMap)
-        Map("_id" -> repoId) ++  termMap ++ topicMap
-      })
+    }).groupBy(f => f._1).map(f => (f._1, f._2.map({ case (repoId, file, klscore) => (file, klscore) }).toMap))
 
-    updatedRepoRDD.saveToEs(KodeBeagleConfig.esRepoTopicIndex,
-      Map("es.write.operation" -> "upsert", 
-          "es.mapping.id" -> "_id"))
+    val updatedRepoRDD = sc.makeRDD(repoTopicFields).join(repoFilescore).map({ case (repoId, (repoTopicMap, repoFileMap)) =>
+      val esTopicMap = repoTopicMap.map(f => Map(termFieldName -> f._1, freqFieldName -> f._2))
+      val esFilesMap = repoFileMap.map(f => Map(fileFieldName -> f._1, klScoreFieldName -> f._2))
+      val termMap = Map(topicFieldName -> esTopicMap)
+      val topicMap = Map(filesFieldName -> esFilesMap)
+      Map("_id" -> repoId) ++ termMap ++ topicMap
+    })
+
+    import SparkIndexJobHelper._
+
+    if (TopicModelConfig.saveToLocal != "") {
+      log.info(s"Saving to ${TopicModelConfig.saveToLocal}")
+      updatedRepoRDD.map(repoRecord => toJson(TopicModel(repoRecord))).
+        saveAsTextFile(TopicModelConfig.saveToLocal + java.util.UUID.randomUUID())
+    }
+    else {
+      log.info(s"Saving to ${TopicModelConfig.saveToLocal}")
+      updatedRepoRDD.saveToEs(KodeBeagleConfig.esRepoTopicIndex,
+        Map("es.write.operation" -> "upsert", "es.mapping.id" -> "_id"))
+    }
   }
 
   def logTopics(topics: Array[Array[(Int, Long)]],
@@ -286,3 +292,5 @@ object CreateTopicModelJob extends Logger {
   }
 
 }
+
+case class TopicModel(topicModel: Map[String, Object])
