@@ -214,9 +214,22 @@ object CreateTopicModelJob extends Logger {
         Map("_id" -> repoId) ++  termMap ++ topicMap
       })
 
-    updatedRepoRDD.saveToEs(KodeBeagleConfig.esRepoTopicIndex,
-      Map("es.write.operation" -> "upsert", 
-          "es.mapping.id" -> "_id"))
+    saveToESOrDisk(updatedRepoRDD)
+  }
+
+  def saveToESOrDisk(updatedRepoRDD: RDD[Map[String, Object]]): Unit = {
+    import SparkIndexJobHelper._
+    import com.kodebeagle.indexer.TopicModel
+
+    if (TopicModelConfig.save && !TopicModelConfig.saveToLocal.isEmpty) {
+      log.info(s"Saving to ${TopicModelConfig.saveToLocal}")
+      updatedRepoRDD.map(repoRecord => toJson(TopicModel(repoRecord))).
+        saveAsTextFile(TopicModelConfig.saveToLocal + java.util.UUID.randomUUID())
+    } else {
+      log.info(s"Saving to ${TopicModelConfig.saveToLocal}")
+      updatedRepoRDD.saveToEs(KodeBeagleConfig.esRepoTopicIndex,
+        Map("es.write.operation" -> "upsert", "es.mapping.id" -> "_id"))
+    }
   }
 
   def logTopics(topics: Array[Array[(Int, Long)]],

@@ -66,6 +66,8 @@ object TopicModelConfig extends ConfigReader {
     get("kodebeagle.ml.topicmodel.nDescriptionWords").get.toInt
   private[kodebeagle] val chkptInterval = get("kodebeagle.ml.topicmodel.chkptInterval").get.toInt
   private[kodebeagle] val batchSize = get("kodebeagle.ml.topicmodel.batchSize").get.toInt
+  private[kodebeagle] val save = get("kodebeagle.ml.topicmodel.save").get.trim.toBoolean
+  private[kodebeagle] val saveToLocal = get("kodebeagle.ml.topicmodel.saveToLocal").get.trim
 }
 
 trait ConfigReader {

@@ -44,6 +44,8 @@ case class Repository(login: String, id: Int, name: String, fork: Boolean, langu
 
 case class Statistics(repoId: Int, sloc: Int, fileCount: Int, size: Long)
 
+case class TopicModel(model: Map[String, Object])
+
 /** For testing */
 object Repository {
   def invalid: Repository = Repository("n-a", -1, "n-a", fork = false, "Java", "n-a", 0)
