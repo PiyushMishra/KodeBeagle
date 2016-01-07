@@ -42,13 +42,14 @@ object CreateIndexJobForMethods {
 
     zipFileExtractedRDD.map { f =>
       val (javaFiles, scalaFiles, repo, packages, stats) = f
-      (repo, new JavaASTBasedIndexerForMethods()
-        .generateTokensWithMethods(javaFiles.toMap, packages, repo),
-        ScalaParser.generateTokensWithBraceContext(scalaFiles.toMap, packages, repo),
-        mapToSourceFiles(repo, javaFiles ++ scalaFiles), stats)
-    }.flatMap { case (Some(repository), javaIndices, scalaIndices, sourceFiles, stats) =>
-      Seq(toJson(repository, isToken = false), toJson(javaIndices, isToken = false),
-        toJson(scalaIndices, isToken = false), toJson(sourceFiles, isToken = false),
+      val (tokens, javaTypes) = new JavaASTBasedIndexerForMethods()
+        .generateTokensWithMethods(javaFiles.toMap, packages, repo)
+      (repo, tokens, ScalaParser.generateTokensWithBraceContext(scalaFiles.toMap, packages, repo),
+        mapToSourceFiles(repo, javaFiles ++ scalaFiles, javaTypes), stats)
+    }.flatMap { case (Some(repository), javaIndices, scalaIndices,
+    sourceFiles, stats) => Seq(toJson(repository, isToken = false),
+      toJson(javaIndices,isToken = false), toJson(scalaIndices, isToken = false),
+      toJson(sourceFiles, isToken = false),
         toJson(stats, isToken = false))
     case _ => Seq()
     }.saveAsTextFile(KodeBeagleConfig.sparkIndexOutput)

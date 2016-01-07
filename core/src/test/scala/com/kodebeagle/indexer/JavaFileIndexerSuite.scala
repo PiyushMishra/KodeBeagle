@@ -164,7 +164,7 @@ class JavaASTBasedIndexerForMethodsSuite extends FunSuite with BeforeAndAfterAll
     val methodTokens = indexer.generateTokensWithMethods(Map("sample-master/Sample.java" -> writer
       .toString), List(), Some(Repository.invalid))
 
-    assert(methodTokens.size === 7)
+    assert(methodTokens._1.size === 7)
   
     val importChannel: String = "io.netty.channel.Channel"
     val importObjects: String = "com.google.common.base.Objects"
@@ -273,6 +273,6 @@ class JavaASTBasedIndexerForMethodsSuite extends FunSuite with BeforeAndAfterAll
             importChannel + "FutureListener",List(HighLighter(145,11,31)),Set())),0, "java")
     )
 
-    assert(methodTokens ===  testMethodTokens)
+    assert(methodTokens._1 ===  testMethodTokens)
   }
 }

@@ -25,28 +25,32 @@ import scala.collection.immutable
 
 class JavaASTBasedIndexerForMethods extends JavaASTBasedIndexer {
 
-  private def extractTokensASTParser(excludePackages: Set[String],
-                                     fileContent: String, fileName: String):
-  (Set[(String, String)], List[Set[MethodToken]]) = {
+  private def extractTokensWithTypesASTParser(excludePackages: Set[String],
+    fileContent: String, fileName: String):
+  (Set[(String, String)], List[Set[MethodToken]], Set[String]) = {
+    import scala.collection.JavaConversions._
     val parser = new MethodVisitor()
     parser.parse(fileContent, fileName)
     import com.kodebeagle.parser.MethodVisitorHelper._
     val imports: Set[(String, String)] = getImports(parser,excludePackages)
     val importsSet = imports.map(tuple2ToImportString)
     val tokensMap: List[Map[String, List[HighLighter]]] = getTokenMap(parser, importsSet)
-    (imports, createMethodIndexEntries(parser, tokensMap))
+    (imports, createMethodIndexEntries(parser, tokensMap), parser.types.toSet)
   }
 
   def generateTokensWithMethods(files: Map[String, String], excludePackages: List[String],
-                                repo: Option[Repository]): Set[ImportsMethods] = {
+                                repo: Option[Repository]):
+  (Set[ImportsMethods], Map[String, Set[String]]) = {
     var indexEntries = immutable.HashSet[ImportsMethods]()
+    var fileAndTypes: Map[String, Set[String]]= Map()
     val r = repo.getOrElse(Repository.invalid)
     for (file <- files) {
       val (fileName, fileContent) = file
       val fullGithubURL = fileNameToURL(r, fileName)
       try {
-        val (imports, methodTokens) =
-          extractTokensASTParser(excludePackages.toSet, fileContent, fileName)
+        val (imports, methodTokens, types) =
+          extractTokensWithTypesASTParser(excludePackages.toSet, fileContent, fileName)
+        fileAndTypes = fileAndTypes ++ Map(fullGithubURL -> types)
         val score =
           if (isTestFile(imports)) r.stargazersCount / penalizeTestFiles else r.stargazersCount
         for (methodToken <- methodTokens) {
@@ -58,6 +62,6 @@ class JavaASTBasedIndexerForMethods extends JavaASTBasedIndexer {
         case e: Throwable => log.error(s"Failed for $fullGithubURL", e);
       }
     }
-    indexEntries.filter(x => x.language.nonEmpty && x.tokens.nonEmpty)
+    (indexEntries.filter(x => x.language.nonEmpty && x.tokens.nonEmpty), fileAndTypes)
   }
 }

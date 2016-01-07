@@ -41,7 +41,10 @@ import java.util.Map;
 @SuppressWarnings("rawtypes")
 public class MethodVisitor extends VoidVisitorAdapter {
 
+
+    private String packageName  = "";
     private List<ImportDeclaration> imports;
+    public ArrayList<String> types = new ArrayList<>();
     private Map<String, String> importDeclMap = new HashMap<String, String>();
     private Map<String, String> fieldVariableMap = new HashMap<String, String>();
     private String className = null;
@@ -97,6 +100,7 @@ public class MethodVisitor extends VoidVisitorAdapter {
             PackageDeclaration pakg = cu.getPackage();
             String pkg = "";
             pkg = pakg != null ? pakg.getName().toString() : pkg;
+            packageName = pkg;
             setImports(imports);
             visit(cu, pkg);
         }
@@ -105,6 +109,7 @@ public class MethodVisitor extends VoidVisitorAdapter {
     @Override
     public void visit(ClassOrInterfaceDeclaration n, Object arg) {
         className = arg + "." + n.getName();
+        types.add(packageName + "." + n.getName());
         List<BodyDeclaration> members = n.getMembers();
         for (BodyDeclaration b : members) {
             fancyVisitBody(null, b);

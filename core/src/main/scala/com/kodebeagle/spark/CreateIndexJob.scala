@@ -39,7 +39,7 @@ object CreateIndexJob {
     zipFileExtractedRDD.map { f =>
       val (files, _, repo, packages, stats) = f
       (repo, new JavaASTBasedIndexer()
-        .generateTokens(files.toMap, packages, repo), mapToSourceFiles(repo, files), stats)
+        .generateTokens(files.toMap, packages, repo), mapToSourceFiles(repo, files, Map()), stats)
     }.flatMap { case (Some(a), b, c, d) =>
       Seq(toJson(a, isToken = false), toJson(b, isToken = true), toJson(c, isToken = false),
         toJson(d, isToken = false))

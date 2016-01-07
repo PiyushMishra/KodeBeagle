@@ -32,11 +32,13 @@ import scala.util.Try
 object SparkIndexJobHelper {
 
   def mapToSourceFiles(repo: Option[Repository],
-                       map: List[(String, String)]): Set[SourceFile] = {
+    map: List[(String, String)], fileAndTypesMap: Map[String, Set[String]]):
+  Set[SourceFile] = {
     val repo2 = repo.getOrElse(Repository.invalid)
     import com.kodebeagle.indexer.JavaFileIndexerHelper._
-
-    map.map(x => SourceFile(repo2.id, fileNameToURL(repo2, x._1), x._2)).toSet
+    map.map(x => SourceFile
+    (repo2.id, fileNameToURL(repo2, x._1), x._2,
+      fileAndTypesMap.getOrElse(fileNameToURL(repo2, x._1), Set()))).toSet
   }
 
   def createSparkContext(conf: SparkConf): SparkContext = new SparkContext(conf)

@@ -38,7 +38,8 @@ case class Token2(importName: String, importExactName: String,
 
 case class HighLighter(lineNumber: Int, startColumn: Int, endColumn: Int)
 
-case class SourceFile(repoId: Int, fileName: String, fileContent: String)
+case class SourceFile(repoId: Int, fileName: String, fileContent: String,
+types: Set[String])
 
 case class Repository(login: String, id: Int, name: String, fork: Boolean, language: String,
                       defaultBranch: String, stargazersCount: Int)
