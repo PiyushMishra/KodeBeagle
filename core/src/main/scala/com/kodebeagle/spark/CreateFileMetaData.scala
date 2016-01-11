@@ -28,13 +28,16 @@ import org.apache.spark.{SparkContext, SparkConf}
 import org.eclipse.jdt.core.dom.{CompilationUnit, ASTNode}
 import org.elasticsearch.spark._
 
+import scala.collection.mutable
+
 case class RepoSource(repoId: Long, fileName: String, fileContent: String)
+case class FileTypes(fileType: String, loc: String)
 case class ExternalRef(id: Int,fqt:String)
 case class VarTypeLocation(loc: String, id: Int)
 case class MethodTypeLocation(loc: String, id: Int, method: String, argTypes: List[String])
 case class MethodDefinition(loc: String, method: String, argTypes: List[String])
 case class InternalRef(childLine:String, parentLine:String)
-case class FileMetaData(repoId: Long,fileName:String, fileTypes :util.List[String],externalRefList: List[ExternalRef],
+case class FileMetaData(repoId: Long,fileName:String, fileTypes :util.List[FileTypes],externalRefList: List[ExternalRef],
                         typeLocationList: List[VarTypeLocation],methodTypeLocation: List[MethodTypeLocation],
                         methodDefinitionList: List[MethodDefinition], internalRefList: List[InternalRef])
 
@@ -96,7 +99,8 @@ object CreateFileMetaData extends Logger{
 
         //internal references
         val internalRefsList = getInternalRefs(unit, resolver)
-        Some(FileMetaData(source.repoId, source.fileName, resolver.getClassesInFile, externalRefsList.toList,
+        val fileTypes = getFileTypes(unit, resolver)
+        Some(FileMetaData(source.repoId, source.fileName, fileTypes.toList, externalRefsList.toList,
           typeLocationVarList.toList, typeLocationMethodList.toList, methodDefinitionList.toList,
           internalRefsList.toList))
       } else {
@@ -107,13 +111,21 @@ object CreateFileMetaData extends Logger{
     filesMetaData.filter(_.isDefined)
   }
 
-  def getTypeLocationVarList(unit: CompilationUnit, typesAtPos: util.Map[Integer, String],
+  def getFileTypes(unit: CompilationUnit, resolver: SingleClassBindingResolver) : mutable.Buffer[FileTypes] = {
+    val types: util.Map[String, String] = resolver.getClassesInFile
+    for (typeDeclaration <- resolver.getTypeDeclarations) yield {
+      FileTypes(types.get(typeDeclaration.getClassName), unit.getLineNumber(typeDeclaration.getLoc) + "#"
+        + unit.getColumnNumber(typeDeclaration.getLoc))
+    }
+  }
+
+  def getTypeLocationVarList(unit: CompilationUnit, typesAtPos: util.Map[ASTNode, String],
                              idVsExternalRefs: Map[String, Int]): scala.collection.mutable.Set[VarTypeLocation] = {
     for (e <- typesAtPos.entrySet) yield {
-      val line: Integer = unit.getLineNumber(e.getKey)
-      val col: Integer = unit.getColumnNumber(e.getKey)
+      val line: Integer = unit.getLineNumber(e.getKey.getStartPosition)
+      val col: Integer = unit.getColumnNumber(e.getKey.getStartPosition)
       val valueType = e.getValue
-      VarTypeLocation(line + "#" + col + "#" + unit.getLength, idVsExternalRefs.getOrElse(valueType, -1))
+      VarTypeLocation(line + "#" + col + "#" + e.getKey.getLength, idVsExternalRefs.getOrElse(valueType, -1))
     }
   }
 

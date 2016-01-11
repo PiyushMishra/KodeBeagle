@@ -8,12 +8,13 @@ import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.Type;
-import org.eclipse.jdt.internal.compiler.ast.TypeDeclaration;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Stack;
 
 public class MethodInvocationResolver extends TypeResolver {
@@ -21,8 +22,15 @@ public class MethodInvocationResolver extends TypeResolver {
 	private Map<String, List<MethodInvokRef>> methodInvoks = new HashMap<String, List<MethodInvokRef>>();
 	private Stack<MethodDeclaration> methodStack = new Stack<MethodDeclaration>();
 	private List<MethodDecl> declaredMethods = new ArrayList<MethodDecl>();
+	private List<TypeDecl> typeDeclarations = new ArrayList<>();
 	private MethodInvokRef currentMethodInvokRef;
 	private static final String OBJECT_TYPE = "java.lang.Object";
+	protected Map<String,String> types = new HashMap();
+	protected Queue<String> typesInFile = new ArrayDeque<>();
+
+	public List<TypeDecl> getTypeDeclarations() {
+		return typeDeclarations;
+	}
 
 	public Map<String, List<MethodInvokRef>> getMethodInvoks() {
 		return methodInvoks;
@@ -36,6 +44,32 @@ public class MethodInvocationResolver extends TypeResolver {
 		return currentMethodInvokRef;
 	}
 
+	String type = "";
+
+	@Override
+	public boolean visit(org.eclipse.jdt.core.dom.TypeDeclaration td) {
+		if (typesInFile.isEmpty()) {
+			type = "";
+		}
+		typesInFile.add(td.getName().getFullyQualifiedName());
+		TypeDecl obj = new TypeDecl(td.getName().getFullyQualifiedName(), td.getStartPosition());
+		typeDeclarations.add(obj);
+		return true;
+	}
+
+	public Map<String, String> getTypes() {
+		return types;
+	}
+
+	@Override
+	public void endVisit(org.eclipse.jdt.core.dom.TypeDeclaration td) {
+		if (!typesInFile.isEmpty()) {
+			String xyz = typesInFile.remove();
+			type = type + xyz + ".";
+			types.put(xyz, currentPackage + "." + type.substring(0, type.lastIndexOf(".")));
+		}
+	}
+
 	@Override
 	public boolean visit(MethodDeclaration node) {
 		methodStack.push(node);
@@ -45,7 +79,9 @@ public class MethodInvocationResolver extends TypeResolver {
 
 	@Override
 	public void endVisit(MethodDeclaration node) {
-		methodStack.pop();
+		if (!methodStack.isEmpty()) {
+			methodStack.pop();
+		}
 		super.endVisit(node);
 	}
 
@@ -98,7 +134,7 @@ public class MethodInvocationResolver extends TypeResolver {
 		}
 		return true;
 	}
-	
+
 	@SuppressWarnings("rawtypes")
 	private void addMethodDecl(MethodDeclaration node) {
 		SimpleName nameNode = node.getName();
@@ -175,7 +211,26 @@ public class MethodInvocationResolver extends TypeResolver {
 		return argTypes;
 	}
 
-	public static class MethodDecl {
+	public static class TypeDecl {
+		private String className;
+		private Integer loc;
+
+		public TypeDecl(String className, Integer loc) {
+			super();
+			this.className = className;
+			this.loc = loc;
+		}
+
+		public String getClassName() {
+			return className;
+		}
+
+		public Integer getLoc() {
+			return loc;
+		}
+	}
+
+		public static class MethodDecl {
 		private String methodName;
 		private Integer argNum;
 		private Integer location;

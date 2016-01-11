@@ -16,19 +16,15 @@ import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SimpleType;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.Type;
-import org.eclipse.jdt.core.dom.TypeDeclaration;
 import org.eclipse.jdt.core.dom.UnionType;
 import org.eclipse.jdt.core.dom.VariableDeclarationExpression;
 import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 import org.eclipse.jdt.core.dom.VariableDeclarationStatement;
 import org.eclipse.jdt.core.dom.WildcardType;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Queue;
 
 /**
  * This class does the following -
@@ -40,9 +36,9 @@ import java.util.Queue;
  * name. E.g. in statement Type t = TypeFactory.getType(); 'Type' and
  * 'TypeFactory' nodes will be resolved to their fully qualified names at the
  * llocation.
- * 
+ *
  * </ol>
- * 
+ *
  * @author sachint
  *
  */
@@ -50,7 +46,7 @@ public class TypeResolver extends ASTVisitor {
 
 	private int nextVarId = 0;
 
-	private String currentPackage = "";
+	protected String currentPackage = "";
 
 	/**
 	 * A hash map between classNames and their respective packages
@@ -85,8 +81,8 @@ public class TypeResolver extends ASTVisitor {
 	 */
 	private Map<Integer, String> variableTypes = Maps.newTreeMap();
 
-	protected Queue<String> typesInFile = new ArrayDeque<>();
-	protected List<String> types = new ArrayList<String>();
+	final Map<String, Integer> bindingsCopy = Maps.newTreeMap();
+
 
 	public Map<String, String> getImportedNames() {
 		return importedNames;
@@ -107,7 +103,7 @@ public class TypeResolver extends ASTVisitor {
 	protected Map<Integer, String> getVariableTypes() {
 		return variableTypes;
 	}
-	
+
 	protected Map<ASTNode, Map<String, Integer>> getNodeScopes() {
 		return nodeScopes;
 	}
@@ -146,11 +142,11 @@ public class TypeResolver extends ASTVisitor {
 
 	/**
 	 * Get the fully qualified name for a given short class name.
-	 * 
+	 *
 	 * @param className
 	 * @return
 	 */
-	private final String getFullyQualifiedNameFor(final String className) {
+	public final String getFullyQualifiedNameFor(final String className) {
 		if (importedNames.containsKey(className)) {
 			return importedNames.get(className);
 		} else {
@@ -221,7 +217,6 @@ public class TypeResolver extends ASTVisitor {
 		final ASTNode parent = node.getParent();
 		if (parent != null && nodeScopes.containsKey(parent)) {
 			// inherit all variables in parent scope
-			final Map<String, Integer> bindingsCopy = Maps.newTreeMap();
 			for (final Entry<String, Integer> binding : nodeScopes.get(parent)
 					.entrySet()) {
 				bindingsCopy.put(binding.getKey(), binding.getValue());
@@ -261,30 +256,6 @@ public class TypeResolver extends ASTVisitor {
 	public boolean visit(final PackageDeclaration node) {
 		currentPackage = node.getName().getFullyQualifiedName();
 		return false;
-	}
-
-	String type = "";
-
-	@Override
-	public boolean visit(TypeDeclaration td) {
-		if (typesInFile.isEmpty()) {
-			type = "";
-		}
-		typesInFile.add(td.getName().getFullyQualifiedName());
-		return true;
-	}
-
-	public List<String> getTypes() {
-		return types;
-	}
-
-	@Override
-	public void endVisit(TypeDeclaration td) {
-		while (!typesInFile.isEmpty()) {
-			String xyz = typesInFile.remove();
-			type = type + xyz + ".";
-			types.add(currentPackage + "." + type.substring(0, type.lastIndexOf(".")));
-		}
 	}
 
 	/**
