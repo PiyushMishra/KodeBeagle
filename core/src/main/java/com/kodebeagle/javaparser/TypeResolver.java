@@ -150,7 +150,7 @@ public class TypeResolver extends ASTVisitor {
 	 * @param className
 	 * @return
 	 */
-	private final String getFullyQualifiedNameFor(final String className) {
+	public final String getFullyQualifiedNameFor(final String className) {
 		if (importedNames.containsKey(className)) {
 			return importedNames.get(className);
 		} else {

@@ -45,7 +45,9 @@ public class MethodInvocationResolver extends TypeResolver {
 
 	@Override
 	public void endVisit(MethodDeclaration node) {
-		methodStack.pop();
+		if (!methodStack.isEmpty()) {
+			methodStack.pop();
+		}
 		super.endVisit(node);
 	}
 

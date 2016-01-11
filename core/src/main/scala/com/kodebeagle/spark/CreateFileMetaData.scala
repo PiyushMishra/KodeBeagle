@@ -107,13 +107,13 @@ object CreateFileMetaData extends Logger{
     filesMetaData.filter(_.isDefined)
   }
 
-  def getTypeLocationVarList(unit: CompilationUnit, typesAtPos: util.Map[Integer, String],
+  def getTypeLocationVarList(unit: CompilationUnit, typesAtPos: util.Map[ASTNode, String],
                              idVsExternalRefs: Map[String, Int]): scala.collection.mutable.Set[VarTypeLocation] = {
     for (e <- typesAtPos.entrySet) yield {
-      val line: Integer = unit.getLineNumber(e.getKey)
-      val col: Integer = unit.getColumnNumber(e.getKey)
+      val line: Integer = unit.getLineNumber(e.getKey.getStartPosition)
+      val col: Integer = unit.getColumnNumber(e.getKey.getStartPosition)
       val valueType = e.getValue
-      VarTypeLocation(line + "#" + col + "#" + unit.getLength, idVsExternalRefs.getOrElse(valueType, -1))
+      VarTypeLocation(line + "#" + col + "#" + e.getKey.getLength, idVsExternalRefs.getOrElse(valueType, -1))
     }
   }
 

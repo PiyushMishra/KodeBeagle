@@ -26,8 +26,13 @@ public class SingleClassBindingResolver {
 
 	private final MethodInvocationResolver resolver = new MethodInvocationResolver();
 
+	public MethodInvocationResolver getResolver() {
+		return resolver;
+	}
+
 	public SingleClassBindingResolver(final ASTNode node) {
 		rootNode = node;
+
 	}
 
 	/**
@@ -52,8 +57,8 @@ public class SingleClassBindingResolver {
 	 * Returns the location and type of all the variables.
 	 * @return
 	 */
-	public Map<Integer, String> getVariableTypesAtPosition() {
-		final Map<Integer, String> variableTypes = Maps.newTreeMap();
+	public Map<ASTNode, String> getVariableTypesAtPosition() {
+		final Map<ASTNode, String> variableTypes = Maps.newIdentityHashMap();
 
 		for (final Entry<Integer, List<ASTNode>> variableBinding : resolver.getVariableBinding()
 				.entrySet()) {
@@ -61,7 +66,7 @@ public class SingleClassBindingResolver {
 			final String varType = checkNotNull(resolver.getVariableTypes()
 					.get(bindingId));
 			for (final ASTNode node : variableBinding.getValue()) {
-				variableTypes.put(node.getStartPosition(), varType);
+				variableTypes.put(node, varType);
 			}
 		}
 		return variableTypes;
@@ -110,5 +115,4 @@ public class SingleClassBindingResolver {
 	public void resolve() {
 		rootNode.accept(resolver);
 	}
-
 }

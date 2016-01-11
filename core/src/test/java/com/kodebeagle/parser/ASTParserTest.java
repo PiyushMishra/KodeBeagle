@@ -7,77 +7,179 @@ import com.kodebeagle.javaparser.MethodInvocationResolver.MethodInvokRef;
 import com.kodebeagle.javaparser.SingleClassBindingResolver;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.CompilationUnit;
-import org.eclipse.jdt.core.dom.TypeDeclaration;
+import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
 public class ASTParserTest extends AbstractParseTest {
+    private CompilationUnit unit;
+    private SingleClassBindingResolver resolver;
 
-	@Test
-	public void testOneMethod()  {
-		JavaASTParser pars = new JavaASTParser(true);
-		ASTNode cu = pars.getAST(oneMethod, ParseType.COMPILATION_UNIT);
-		CompilationUnit unit = (CompilationUnit) cu;
+    @Before
+    public void setup() {
+        setTestConfig();
+    }
 
-		SingleClassBindingResolver resolver = new SingleClassBindingResolver(
-				unit);
-		resolver.resolve();
-		Map<Integer, String> typesAtPos = resolver.getVariableTypesAtPosition();
-		System.out.println("filetypes in given file \n" );
+    private void setTestConfig() {
+        JavaASTParser pars = new JavaASTParser(true);
+        ASTNode cu = pars.getAST(oneMethod, ParseType.COMPILATION_UNIT);
+        unit = (CompilationUnit) cu;
+        resolver = new SingleClassBindingResolver(
+                unit);
+        resolver.resolve();
+    }
 
-		for (String typeDeclaration : resolver.getClassesInFile()) {
-			System.out.println(typeDeclaration);
-		}
+    @Test
+    public void testClassesInFile() {
+        List<String> expectedClassesInFile = new ArrayList<String>();
+        expectedClassesInFile.add("x.y.z.DefaultRequestDirector");
+        expectedClassesInFile.add("x.y.z.DefaultRequestDirector.DEF");
+        expectedClassesInFile.add("x.y.z.DefaultRequestDirector.DEF.GHI");
+        expectedClassesInFile.add("x.y.z.ABC");
 
-		for (Entry<Integer, String> e : typesAtPos.entrySet()) {
-			Integer line = unit.getLineNumber(e.getKey());
-			Integer col = unit.getColumnNumber(e.getKey());
-			System.out.println(line + " , " + col + " : " + e.getValue());
-		}
+        List<String> actualClassesInFile = resolver.getClassesInFile();
+        Assert.assertEquals(expectedClassesInFile, actualClassesInFile);
+    }
 
-		for (Entry<Integer, String> e : resolver.getTypesAtPosition()
-				.entrySet()) {
-			Integer line = unit.getLineNumber(e.getKey());
-			Integer col = unit.getColumnNumber(e.getKey());
+    @Test
+    public void testImportNamesInFile() {
+        //TODO: Some imports are missed
+        /*setTestConfig();
+        System.out.println(resolver.getResolver().getImportedNames());*/
+    }
 
-			System.out.println(line + " , " + col + " : " + e.getValue());
-		}
+    @Test
+    public void testFullyQualifiedName() {
+        String expected = "org.apache.commons.logging.Log";
+        String actual = resolver.getResolver().getFullyQualifiedNameFor("Log");
+        Assert.assertEquals(expected, actual);
+        expected = "java.lang.String";
+        actual = resolver.getResolver().getFullyQualifiedNameFor("String");
+        Assert.assertEquals(expected, actual);
+    }
 
-		for (Entry<ASTNode, ASTNode> e : resolver.getVariableDependencies()
-				.entrySet()) {
-			ASTNode child = e.getKey();
-			Integer chline = unit.getLineNumber(child.getStartPosition());
-			Integer chcol = unit.getColumnNumber(child.getStartPosition());
-			ASTNode parent = e.getValue();
-			Integer pline = unit.getLineNumber(parent.getStartPosition());
-			Integer pcol = unit.getColumnNumber(parent.getStartPosition());
-			System.out.println("**** " + child + "[" + chline + ", " + chcol
-					+ "] ==> " + parent.toString() + "[" + pline + ", " + pcol
-					+ "]");
-		}
+    @Test
+    public void testGetVariableTypes() {
+        oneMethod = "import x.y.Type;" +
+                "import org.apache.Duration;" +
+                "class Abc { Type xyz = new Type();" +
+                "Duration obj = new Duration();" +
+                "obj.print(); }";
+        setTestConfig();
+        Map<String, String> expected = new HashMap<>();
+        expected.put("obj", "org.apache.Duration");
+        expected.put("xyz", "x.y.Type");
+        Map<String, String> actual = resolver.getVariableTypes();
+        Assert.assertEquals(expected, actual);
+    }
 
-		for (Entry<String, List<MethodInvokRef>> entry : resolver
-				.getMethodInvoks().entrySet()) {
-			System.out.println(" ~~~~~~~~~~~ For method " + entry.getKey()
-					+ " ~~~~~~~~~~~");
-			for (MethodInvokRef m : entry.getValue()) {
-				Integer loc = m.getLocation();
-				Integer line = unit.getLineNumber(loc);
-				Integer col = unit.getColumnNumber(loc);
-				System.out.println("[" + line + ", " + col + "] ==> " + m);
-			}
-		}
+    @Test
+    public void testGetDeclaredMethods() {
+        oneMethod = "import x.y.Type;" +
+                "import org.apache.Duration;" +
+                "class Abc { Type xyz = new Type();" +
+                "Duration obj = new Duration();" +
+                "void display(){" +
+                "Duration inMethod = new Duration();" +
+                "inMethod.display(); } }";
+        setTestConfig();
+        MethodDecl expected = new MethodDecl("display", 0, 112, new ArrayList<String>());
+        MethodDecl actual = resolver.getDeclaredMethods().get(0);
+        Assert.assertTrue(expected.getMethodName().equals(actual.getMethodName()) && expected.getArgNum() == actual.getArgNum()
+                && expected.getLocation() == actual.getLocation() && expected.getArgTypes().containsAll(actual.getArgTypes()));
 
-		for (MethodDecl m : resolver.getDeclaredMethods()) {
-			System.out
-					.println("~~~~~~~~~~~~~~~~~ Declared Methods ~~~~~~~~~~~~~~~~~");
-			System.out.println(m);
-		}
+    }
 
-		System.out.println(resolver.getVariableTypes());
-	}
+    @Test
+    public void testGetTypesAtPosition() {
+        oneMethod = readInputStream(this.getClass().getResourceAsStream(
+                "/TestData.java"));
+        setTestConfig();
+        Map<Integer, String> expected = new HashMap<>();
+        expected.put(62, "x.y.Type");
+        expected.put(77, "x.y.Type");
+        expected.put(89, "org.apache.Duration");
+        expected.put(108, "org.apache.Duration");
+        Map<Integer, String> actual = resolver.getTypesAtPosition();
+        Assert.assertEquals(expected, actual);
+    }
 
+    @Test
+    public void testGetVariableTypesAtPosition() {
+        oneMethod = readInputStream(this.getClass().getResourceAsStream(
+                "/TestData.java"));
+        setTestConfig();
+        Map<Integer, String> actual = new HashMap<>();
+        Map<Integer, String> expected = new HashMap<>();
+        expected.put(67, "x.y.Type");
+        expected.put(98, "org.apache.Duration");
+        expected.put(150, "org.apache.Duration");
+        Map<ASTNode, String> actualTemp = resolver.getVariableTypesAtPosition();
+        for (Map.Entry<ASTNode, String> entry : actualTemp.entrySet()) {
+            actual.put(entry.getKey().getStartPosition(), entry.getValue());
+        }
+        Assert.assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testOneMethod() {
+        System.out.println("filetypes in given file");
+        for (String typeDeclaration : resolver.getClassesInFile()) {
+            System.out.println(typeDeclaration);
+        }
+        Map<ASTNode, String> typesAtPos = resolver.getVariableTypesAtPosition();
+
+        for (Entry<ASTNode, String> e : typesAtPos.entrySet()) {
+            Integer line = unit.getLineNumber(e.getKey().getStartPosition());
+            Integer col = unit.getColumnNumber(e.getKey().getStartPosition());
+            System.out.println(line + " , " + col + " , " + e.getKey().getLength() + " : " + e.getValue());
+        }
+
+        for (Entry<Integer, String> e : resolver.getTypesAtPosition()
+                .entrySet()) {
+            Integer line = unit.getLineNumber(e.getKey());
+            Integer col = unit.getColumnNumber(e.getKey());
+
+            System.out.println(line + " , " + col + " : " + e.getValue());
+        }
+
+        for (Entry<ASTNode, ASTNode> e : resolver.getVariableDependencies()
+                .entrySet()) {
+            ASTNode child = e.getKey();
+            Integer chline = unit.getLineNumber(child.getStartPosition());
+            Integer chcol = unit.getColumnNumber(child.getStartPosition());
+            ASTNode parent = e.getValue();
+            Integer pline = unit.getLineNumber(parent.getStartPosition());
+            Integer pcol = unit.getColumnNumber(parent.getStartPosition());
+            System.out.println("**** " + child + "[" + chline + ", " + chcol
+                    + "] ==> " + parent.toString() + "[" + pline + ", " + pcol
+                    + "]");
+        }
+
+        for (Entry<String, List<MethodInvokRef>> entry : resolver
+                .getMethodInvoks().entrySet()) {
+            System.out.println(" ~~~~~~~~~~~ For method " + entry.getKey()
+                    + " ~~~~~~~~~~~");
+            for (MethodInvokRef m : entry.getValue()) {
+                Integer loc = m.getLocation();
+                Integer line = unit.getLineNumber(loc);
+                Integer col = unit.getColumnNumber(loc);
+                System.out.println("[" + line + ", " + col + "] ==> " + m);
+            }
+        }
+
+        for (MethodDecl m : resolver.getDeclaredMethods()) {
+            System.out
+                    .println("~~~~~~~~~~~~~~~~~ Declared Methods ~~~~~~~~~~~~~~~~~");
+            System.out.println(m);
+        }
+
+        System.out.println(resolver.getVariableTypes());
+    }
 }
