@@ -45,11 +45,11 @@ object StatisticsAggregator {
   val esNodesKey = "es.nodes"
   val jobName = "FileMetaData"
   val conf = new SparkConf().setAppName(jobName)
-  conf.set(esNodesKey, KodeBeagleConfig.esNodes)
-  conf.set(esPortKey, KodeBeagleConfig.esPort)
   conf.set("es.http.timeout", "5m")
   conf.set("es.scroll.size", "20")
   def main (args: Array[String]) {
+    conf.set(esNodesKey, args(0))
+    conf.set(esPortKey, args(1))
     val sc: SparkContext = createSparkContext(conf)
     sc.setCheckpointDir(KodeBeagleConfig.sparkCheckpointDir)
     val jobName = "FileMetaData"
@@ -63,7 +63,7 @@ object StatisticsAggregator {
       files.filter(_.fileName.endsWith(".java")),pars)
 
     filesMetaData.flatMap(a => a.map(b => toJson(b))).
-      saveAsTextFile(s"hdfs://192.168.2.145:9000/user/filemetadata/")
+      saveAsTextFile(s"hdfs://192.168.2.145:9000/user/filemetadata$args(2)/")
     sc.stop()
   }
 
