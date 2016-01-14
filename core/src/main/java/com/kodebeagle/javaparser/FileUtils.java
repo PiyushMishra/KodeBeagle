@@ -1,14 +1,10 @@
 package com.kodebeagle.javaparser;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileFilter;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class FileUtils {
+public class FileUtils implements Serializable {
 
 	/**
 	 * Read the file as a String.

@@ -10,12 +10,13 @@ import org.eclipse.jdt.core.dom.MethodDeclaration;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.Set;
 
-public class JavaASTParser {
+public class JavaASTParser implements Serializable {
 
 	private final boolean useBindings;
 	private final boolean useJavadocs;

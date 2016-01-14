@@ -27,100 +27,72 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkConf}
 import org.eclipse.jdt.core.dom.{CompilationUnit, ASTNode}
-import org.elasticsearch.action.search.SearchType
-import org.elasticsearch.client.transport.TransportClient
-import org.elasticsearch.common.settings.ImmutableSettings
-import org.elasticsearch.common.transport.InetSocketTransportAddress
-import org.elasticsearch.common.unit.TimeValue
-import org.elasticsearch.node.NodeBuilder._
-import org.elasticsearch.index.query.QueryBuilders._
-import collection.JavaConversions._
 
 case class RepoSource(repoId: Int, fileName: String, fileContent: String)
-case class ExternalRef(id: Int,fqt:String)
+case class ExternalRef(id: Int, fqt: String)
 case class VarTypeLocation(loc: String, id: Int)
 case class MethodTypeLocation(loc: String, id: Int, method: String, argTypes: List[String])
 case class MethodDefinition(loc: String, method: String, argTypes: List[String])
-case class InternalRef(childLine:String, parentLine:String)
-case class FileMetaData(repoId: Long,fileName:String, fileTypes :util.List[String],externalRefList: List[ExternalRef],
-  typeLocationList: List[VarTypeLocation],methodTypeLocation: List[MethodTypeLocation],
-  methodDefinitionList: List[MethodDefinition], internalRefList: List[InternalRef])
-
+case class InternalRef(childLine: String, parentLine: String)
+case class FileMetaData(repoId: Long, fileName: String, fileTypes: util.List[String],
+  externalRefList: List[ExternalRef], typeLocationList: List[VarTypeLocation],
+  methodTypeLocation: List[MethodTypeLocation], methodDefinitionList: List[MethodDefinition],
+  internalRefList: List[InternalRef])
 
 
 object StatisticsAggregator {
   val esPortKey = "es.port"
   val esNodesKey = "es.nodes"
   val jobName = "FileMetaData"
-  val conf = new SparkConf().setAppName(jobName).set("spark.storage.memoryFraction", "0.2")
+  val conf = new SparkConf().setAppName(jobName)
   conf.set(esNodesKey, KodeBeagleConfig.esNodes)
   conf.set(esPortKey, KodeBeagleConfig.esPort)
+  conf.set("es.http.timeout", "5m")
+  conf.set("es.scroll.size", "20")
   def main (args: Array[String]) {
-    val clusterName = "elasticsearch"
-    val hostName = "192.168.2.67"
-    val port = 9300
-    val size = args(0).toInt
-    val transportClient = new TransportClient(ImmutableSettings.settingsBuilder().put("cluster.name", clusterName)
-      .put("client.transport.sniff", true).build())
-    val client = transportClient.addTransportAddress(new InetSocketTransportAddress(hostName, port))
-
-    import scala.collection.JavaConversions._
-    println(client.connectedNodes())
-
-    var repoList : List[String] = List()
-    var i: Int = 0
-    var scrollResp = client.prepareSearch("sourcefile")
-      .setSearchType(SearchType.SCAN).setTypes("typesourcefile")
-      .setScroll(new TimeValue(60000))
-      .setSize(size).execute().actionGet()
+    val sc: SparkContext = createSparkContext(conf)
+    sc.setCheckpointDir(KodeBeagleConfig.sparkCheckpointDir)
     val jobName = "FileMetaData"
-    do {
-      for (hit <- scrollResp.getHits().getHits()) {
-        val source = hit.getSource
-        repoList = repoList ++ List(""""""" + source.get("fileName").asInstanceOf[String] + """"""")
-      }
-      val sc: SparkContext = createSparkContext(conf)
-      val repoIds = repoList.mkString(",")
-      val query = s"""{"query":{"terms": {"fileName": [${repoIds}]}}}"""
-      import org.elasticsearch.spark._
-      val files = sc.esRDD(KodeBeagleConfig.esourceFileIndex, query).map({
-        case (repoId, valuesMap) => {
-          RepoSource(valuesMap.get("repoId").getOrElse(0).asInstanceOf[Int],
-            valuesMap.get("fileName").getOrElse("").asInstanceOf[String],
-            valuesMap.get("fileContent").getOrElse("").toString)
-        }
-      })
-      val parser: JavaASTParser = new JavaASTParser(true)
-      val pars = sc.broadcast(parser)
+    sc.setCheckpointDir(KodeBeagleConfig.sparkCheckpointDir)
+    val files: RDD[RepoSource] = getRepoSources(sc).filter(!_.fileName.endsWith("ClassWithLotOfFields.java"))
 
-      val filesMetaData = CreateFileMetaData.getFilesMetaData(
-        files.filter(_.fileName.endsWith(".java")),pars)
+    val parser: JavaASTParser = new JavaASTParser(true)
+    val pars = sc.broadcast(parser)
 
-      filesMetaData.flatMap(a => a.map(b => toJson(b))).
-        saveAsTextFile(s"hdfs://192.168.2.145:9000/user/filemetadata/index$i")
-      i = i +1
-      sc.stop
-      repoList = Nil
-      scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).
-        setScroll(new TimeValue(600000)).execute().actionGet()
-    } while (scrollResp.getHits().getHits().length != 0)
+    val filesMetaData = CreateFileMetaData.getFilesMetaData(
+      files.filter(_.fileName.endsWith(".java")),pars)
 
+    filesMetaData.flatMap(a => a.map(b => toJson(b))).
+      saveAsTextFile(s"hdfs://192.168.2.145:9000/user/filemetadata/")
+    sc.stop()
+  }
+
+  import org.elasticsearch.spark._
+  def getRepoSources(sc: SparkContext): RDD[RepoSource] = {
+    sc.esRDD(KodeBeagleConfig.esourceFileIndex).map
+    { case (repoId, valuesMap) => {
+      RepoSource(valuesMap.get("repoId").getOrElse(0).asInstanceOf[Int],
+        valuesMap.get("fileName").getOrElse("").asInstanceOf[String],
+        valuesMap.get("fileContent").getOrElse("").toString)
+    }
+    }
   }
 }
 
 object CreateFileMetaData extends Logger{
   import scala.collection.JavaConversions._
 
-  def getFilesMetaData(repoSources: RDD[RepoSource], pars: Broadcast[JavaASTParser]) = {
+  def getFilesMetaData(repoSources: RDD[RepoSource], pars: Broadcast[JavaASTParser]):
+  RDD[Option[FileMetaData]] = {
     val filesMetaData = repoSources.mapPartitions { sources =>
       sources map { source =>
         val cu: ASTNode = pars.value.getAST(source.fileContent, ParseType.COMPILATION_UNIT)
-        if (cu != null) {
+        if (Option(cu) != None) {
           val unit: CompilationUnit = cu.asInstanceOf[CompilationUnit]
           val resolver: SingleClassBindingResolver = new SingleClassBindingResolver(unit)
           resolver.resolve
           val typesAtPos = resolver.getVariableTypesAtPosition
-          //External reference
+          // External reference
           val externalRefs = scala.collection.mutable.Set[String]()
           for (e <- resolver.getTypesAtPosition.entrySet) {
             val line: Integer = unit.getLineNumber(e.getKey)
@@ -141,11 +113,14 @@ object CreateFileMetaData extends Logger{
             MethodDefinition(line.toString, m.getMethodName, m.getArgTypes.toList)
           }
 
-          //internal references
+          // internal references
           val internalRefsList = getInternalRefs(unit, resolver)
-          Some(FileMetaData(source.repoId, source.fileName, resolver.getClassesInFile, externalRefsList.toList, typeLocationVarList.toList, typeLocationMethodList.toList, methodDefinitionList.toList, internalRefsList.toList))
+          Some(FileMetaData(source.repoId, source.fileName, resolver.getClassesInFile,
+            externalRefsList.toList, typeLocationVarList.toList, typeLocationMethodList.toList,
+            methodDefinitionList.toList, internalRefsList.toList))
         } else {
-          log.info("Unable to create AST for file " + source.fileName + "and file contents are \n" + source.fileContent)
+          log.info("Unable to create AST for file " + source.fileName +
+            "and file contents are \n" + source.fileContent)
           None
         }
       }
@@ -153,29 +128,33 @@ object CreateFileMetaData extends Logger{
     filesMetaData.filter(_.isDefined)
   }
 
-  def getTypeLocationVarList(unit: CompilationUnit, typesAtPos: util.Map[Integer, String],
+
+  def getTypeLocationVarList(unit: CompilationUnit, typesAtPos: util.Map[ASTNode, String],
     idVsExternalRefs: Map[String, Int]): scala.collection.mutable.Set[VarTypeLocation] = {
-    for (e <- typesAtPos.entrySet) yield {
-      val line: Integer = unit.getLineNumber(e.getKey)
-      val col: Integer = unit.getColumnNumber(e.getKey)
-      val valueType = e.getValue
-      VarTypeLocation(line + "#" + col + "#" + unit.getLength, idVsExternalRefs.getOrElse(valueType, -1))
+    for {e <- typesAtPos.entrySet
+         if (idVsExternalRefs.getOrElse(e.getValue, -1) != -1)} yield {
+      val line  = unit.getLineNumber(e.getKey.getStartPosition)
+      val col = unit.getColumnNumber(e.getKey.getStartPosition)
+      VarTypeLocation(line + "#" + col + "#" + e.getKey.getLength,
+        idVsExternalRefs(e.getValue))
     }
   }
 
   def getTypeLocationMethodList(unit: CompilationUnit, resolver: SingleClassBindingResolver,
     idVsExternalRefs: Map[String, Int]): scala.collection.mutable.Set[MethodTypeLocation] = {
     for {entry <- resolver.getMethodInvoks.entrySet
-         m <- entry.getValue} yield {
+         m <- entry.getValue
+         if(idVsExternalRefs.getOrElse(m.getTargetType, -1) != -1)} yield {
       val loc: Integer = m.getLocation
       val line: Integer = unit.getLineNumber(loc)
       val col: Integer = unit.getColumnNumber(loc)
-      MethodTypeLocation(line + "#" + col, idVsExternalRefs.getOrElse(m.getTargetType, -1),
+      MethodTypeLocation(line + "#" + col, idVsExternalRefs(m.getTargetType),
         m.getMethodName, m.getArgTypes.toList)
     }
   }
 
-  def getInternalRefs(unit: CompilationUnit, resolver: SingleClassBindingResolver): scala.collection.mutable.Set[InternalRef] = {
+  def getInternalRefs(unit: CompilationUnit, resolver: SingleClassBindingResolver):
+  scala.collection.mutable.Set[InternalRef] = {
     for (e <- resolver.getVariableDependencies.entrySet) yield {
       val child: ASTNode = e.getKey
       val chline: Integer = unit.getLineNumber(child.getStartPosition)

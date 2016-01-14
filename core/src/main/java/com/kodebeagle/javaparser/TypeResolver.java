@@ -87,6 +87,8 @@ public class TypeResolver extends ASTVisitor {
 
 	protected Queue<String> typesInFile = new ArrayDeque<>();
 	protected List<String> types = new ArrayList<String>();
+	final Map<String, Integer> bindingsCopy = Maps.newTreeMap();
+
 
 	public Map<String, String> getImportedNames() {
 		return importedNames;
@@ -150,7 +152,7 @@ public class TypeResolver extends ASTVisitor {
 	 * @param className
 	 * @return
 	 */
-	private final String getFullyQualifiedNameFor(final String className) {
+	public final String getFullyQualifiedNameFor(final String className) {
 		if (importedNames.containsKey(className)) {
 			return importedNames.get(className);
 		} else {
@@ -221,7 +223,6 @@ public class TypeResolver extends ASTVisitor {
 		final ASTNode parent = node.getParent();
 		if (parent != null && nodeScopes.containsKey(parent)) {
 			// inherit all variables in parent scope
-			final Map<String, Integer> bindingsCopy = Maps.newTreeMap();
 			for (final Entry<String, Integer> binding : nodeScopes.get(parent)
 					.entrySet()) {
 				bindingsCopy.put(binding.getKey(), binding.getValue());
