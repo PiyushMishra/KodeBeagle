@@ -28,17 +28,18 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkConf}
 import org.eclipse.jdt.core.dom.{CompilationUnit, ASTNode}
 
-case class RepoSource(repoId: Int, fileName: String, fileContent: String)
-case class ExternalRef(id: Int, fqt: String)
+import scala.collection.mutable
+
+case class RepoSource(repoId: Long, fileName: String, fileContent: String)
+case class FileTypes(fileType: String, loc: String)
+case class ExternalRef(id: Int,fqt:String)
 case class VarTypeLocation(loc: String, id: Int)
 case class MethodTypeLocation(loc: String, id: Int, method: String, argTypes: List[String])
 case class MethodDefinition(loc: String, method: String, argTypes: List[String])
-case class InternalRef(childLine: String, parentLine: String)
-case class FileMetaData(repoId: Long, fileName: String, fileTypes: util.List[String],
-  externalRefList: List[ExternalRef], typeLocationList: List[VarTypeLocation],
-  methodTypeLocation: List[MethodTypeLocation], methodDefinitionList: List[MethodDefinition],
-  internalRefList: List[InternalRef])
-
+case class InternalRef(childLine:String, parentLine:String)
+case class FileMetaData(repoId: Long,fileName:String, fileTypes :util.List[FileTypes],externalRefList: List[ExternalRef],
+                        typeLocationList: List[VarTypeLocation],methodTypeLocation: List[MethodTypeLocation],
+                        methodDefinitionList: List[MethodDefinition], internalRefList: List[InternalRef])
 
 object StatisticsAggregator {
   val esPortKey = "es.port"
@@ -63,7 +64,7 @@ object StatisticsAggregator {
       files.filter(_.fileName.endsWith(".java")),pars)
 
     filesMetaData.flatMap(a => a.map(b => toJson(b))).
-      saveAsTextFile(s"hdfs://192.168.2.145:9000/user/filemetadata$args(2)/")
+      saveAsTextFile(s"hdfs://192.168.2.145:9000/user/filemetadata${args(2)}/")
     sc.stop()
   }
 
@@ -113,14 +114,12 @@ object CreateFileMetaData extends Logger{
             MethodDefinition(line.toString, m.getMethodName, m.getArgTypes.toList)
           }
 
-          // internal references
+          //internal references
           val internalRefsList = getInternalRefs(unit, resolver)
-          Some(FileMetaData(source.repoId, source.fileName, resolver.getClassesInFile,
-            externalRefsList.toList, typeLocationVarList.toList, typeLocationMethodList.toList,
-            methodDefinitionList.toList, internalRefsList.toList))
+          val fileTypes = getFileTypes(unit, resolver)
+          Some(FileMetaData(source.repoId, source.fileName, fileTypes.toList, externalRefsList.toList, typeLocationVarList.toList, typeLocationMethodList.toList, methodDefinitionList.toList, internalRefsList.toList))
         } else {
-          log.info("Unable to create AST for file " + source.fileName +
-            "and file contents are \n" + source.fileContent)
+          log.info("Unable to create AST for file " + source.fileName + "and file contents are \n" + source.fileContent)
           None
         }
       }
@@ -128,15 +127,22 @@ object CreateFileMetaData extends Logger{
     filesMetaData.filter(_.isDefined)
   }
 
+  def getFileTypes(unit: CompilationUnit, resolver: SingleClassBindingResolver) : mutable.Buffer[FileTypes] = {
+    val types: util.Map[String, String] = resolver.getClassesInFile
+    for (typeDeclaration <- resolver.getTypeDeclarations) yield {
+      FileTypes(types.get(typeDeclaration.getClassName), unit.getLineNumber(typeDeclaration.getLoc) + "#"
+        + unit.getColumnNumber(typeDeclaration.getLoc))
+    }
+  }
 
   def getTypeLocationVarList(unit: CompilationUnit, typesAtPos: util.Map[ASTNode, String],
-    idVsExternalRefs: Map[String, Int]): scala.collection.mutable.Set[VarTypeLocation] = {
+                             idVsExternalRefs: Map[String, Int]): scala.collection.mutable.Set[VarTypeLocation] = {
     for {e <- typesAtPos.entrySet
-         if (idVsExternalRefs.getOrElse(e.getValue, -1) != -1)} yield {
-      val line  = unit.getLineNumber(e.getKey.getStartPosition)
-      val col = unit.getColumnNumber(e.getKey.getStartPosition)
-      VarTypeLocation(line + "#" + col + "#" + e.getKey.getLength,
-        idVsExternalRefs(e.getValue))
+         if(idVsExternalRefs.getOrElse(e.getValue, -1) != -1)}yield {
+      val line: Integer = unit.getLineNumber(e.getKey.getStartPosition)
+      val col: Integer = unit.getColumnNumber(e.getKey.getStartPosition)
+      val valueType = e.getValue
+      VarTypeLocation(line + "#" + col + "#" + e.getKey.getLength, idVsExternalRefs(valueType))
     }
   }
 

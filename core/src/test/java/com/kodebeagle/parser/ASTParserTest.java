@@ -2,6 +2,7 @@ package com.kodebeagle.parser;
 
 import com.kodebeagle.javaparser.JavaASTParser;
 import com.kodebeagle.javaparser.JavaASTParser.ParseType;
+import com.kodebeagle.javaparser.MethodInvocationResolver;
 import com.kodebeagle.javaparser.MethodInvocationResolver.MethodDecl;
 import com.kodebeagle.javaparser.MethodInvocationResolver.MethodInvokRef;
 import com.kodebeagle.javaparser.SingleClassBindingResolver;
@@ -11,10 +12,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 
 public class ASTParserTest extends AbstractParseTest {
@@ -30,21 +28,21 @@ public class ASTParserTest extends AbstractParseTest {
         JavaASTParser pars = new JavaASTParser(true);
         ASTNode cu = pars.getAST(oneMethod, ParseType.COMPILATION_UNIT);
         unit = (CompilationUnit) cu;
-        resolver = new SingleClassBindingResolver(
-                unit);
+        resolver = new SingleClassBindingResolver(unit);
         resolver.resolve();
     }
 
     @Test
     public void testClassesInFile() {
-        List<String> expectedClassesInFile = new ArrayList<String>();
-        expectedClassesInFile.add("x.y.z.DefaultRequestDirector");
+        Collection<String> expectedClassesInFile = new ArrayList<String>();
+
+        expectedClassesInFile.add("x.y.z.ABC");
         expectedClassesInFile.add("x.y.z.DefaultRequestDirector.DEF");
         expectedClassesInFile.add("x.y.z.DefaultRequestDirector.DEF.GHI");
-        expectedClassesInFile.add("x.y.z.ABC");
+        expectedClassesInFile.add("x.y.z.DefaultRequestDirector");
 
-        List<String> actualClassesInFile = resolver.getClassesInFile();
-        Assert.assertEquals(expectedClassesInFile, actualClassesInFile);
+        Collection<String> actualClassesInFile = resolver.getClassesInFile().values();
+        Assert.assertEquals(expectedClassesInFile.toArray(), actualClassesInFile.toArray());
     }
 
     @Test
@@ -130,9 +128,12 @@ public class ASTParserTest extends AbstractParseTest {
     @Test
     public void testOneMethod() {
         System.out.println("filetypes in given file");
-        for (String typeDeclaration : resolver.getClassesInFile()) {
-            System.out.println(typeDeclaration);
+        Map<String, String> types = resolver.getClassesInFile();
+        for (MethodInvocationResolver.TypeDecl typeDeclaration : resolver.getTypeDeclarations()) {
+            System.out.println(types.get(typeDeclaration.getClassName()) + "   "
+                    + unit.getLineNumber(typeDeclaration.getLoc()) + "  " + unit.getColumnNumber(typeDeclaration.getLoc()));
         }
+
         Map<ASTNode, String> typesAtPos = resolver.getVariableTypesAtPosition();
 
         for (Entry<ASTNode, String> e : typesAtPos.entrySet()) {
@@ -179,7 +180,6 @@ public class ASTParserTest extends AbstractParseTest {
                     .println("~~~~~~~~~~~~~~~~~ Declared Methods ~~~~~~~~~~~~~~~~~");
             System.out.println(m);
         }
-
         System.out.println(resolver.getVariableTypes());
     }
 }
